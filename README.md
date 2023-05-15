@@ -4,6 +4,7 @@
 
 **Capyfile** - file processing for your microservice architecture. Or for your $5/mo VPS. 
 
+What we are pursuing here:
 * Easy setup
 * High customization
 * Wide range of file processing operations
@@ -14,7 +15,7 @@ File processing service can be set up in **two simple steps**.
 
 ### 1. Prepare the service definition file.
 
-Here's a sample `service-definition.json` file.:
+Here's a sample `service-definition.json` file:
 ```json
 {
   "version": "1.0",
@@ -105,7 +106,10 @@ Now when you have a service definition file, you can run the file processing ser
 docker run \
     --name capyfile_server \
     --mount type=bind,source=./service-definition.json,target=/etc/capyfile/service-definition.json \
-    -e CAPYFILE_SERVICE_DEFINITION_FILE=/etc/capyfile/service-definition.json \
+    --env CAPYFILE_SERVICE_DEFINITION_FILE=/etc/capyfile/service-definition.json \
+    --env AWS_DOCUMENTS_BUCKET=documents \
+    --secret aws_access_key_id \
+    --secret aws_secret_access_key \
     -p 8024:80 \
     capyfile/capysvr:latest
 
@@ -113,8 +117,11 @@ docker run \
 # via CAPYFILE_SERVICE_DEFINITION_URL=https://example.com/service-definition.json
 docker run \
     --name capyfile_server \
+    --env CAPYFILE_SERVICE_DEFINITION_URL=https://example.com/service-definition.json \
+    --env AWS_DOCUMENTS_BUCKET=documents \
+    --secret aws_access_key_id \
+    --secret aws_secret_access_key \
     -p 8024:80 \
-    -e CAPYFILE_SERVICE_DEFINITION_URL=https://example.com/service-definition.json \
     capyfile/capysvr:latest
 ```
 
@@ -137,11 +144,11 @@ curl --data-binary "@$HOME/Documents/document.pdf" http://localhost/upload/docum
 # upload and process multiple files
 curl -F "file1=@$HOME/Documents/document.pdf" http://localhost/upload/document 
 curl \
-	-F "file1=@$HOME/Documents/document.pdf" \
-	-F "file3=@$HOME/Documents/document.docx" \
-	-F "file3=@$HOME/Documents/very-big-document.pdf" \
+    -F "file1=@$HOME/Documents/document.pdf" \
+    -F "file3=@$HOME/Documents/document.docx" \
+    -F "file3=@$HOME/Documents/very-big-document.pdf" \
     -F "file4=@$HOME/Documents/program.run" \
-	http://localhost/upload/document 
+    http://localhost/upload/document 
 ```
 
 The service returns json response of this format (example for multiple files upload above):
