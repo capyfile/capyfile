@@ -7,6 +7,7 @@ RUN mkdir -p /out
 RUN apk add --update  --no-cache \
     bash \
     coreutils \
+    ca-certificates \
     git
 
 RUN mkdir -p /go/src/github.com/capyfile/capyfile

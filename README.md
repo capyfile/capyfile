@@ -214,3 +214,18 @@ setting up the processors and returning output.
 pipeline.
 * **Operation**. Do the actual file processing. It can validate, modify, or store the
 file.
+
+## Development
+
+What we have so far is a basic dev environment running on Docker.
+```bash
+# Build capysvr from the source code and run it with all necessary dependencies
+./up.dev.sh
+
+# now capysvr is accessible on http://localhost:8024 or http://capyfile.local:8024
+# it use `service-definition.dev.json` service definition file
+
+# Stop the dev environment
+./stop.dev.sh
+```
+
