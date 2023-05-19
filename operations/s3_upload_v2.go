@@ -106,12 +106,12 @@ func (o *S3UploadV2Operation) InitPutObjectAPI() error {
 			}),
 		),
 		config.WithRegion(o.Params.Region),
-		// todo: this is not working for some reason, need to investigate
+		// todo: it does not work like this, need more work with the endpoint resolver
 		//config.WithEndpointResolverWithOptions(
 		//	aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
 		//		if service == s3.ServiceID {
 		//			return aws.Endpoint{
-		//				URL: fmt.Sprintf("https://%s", o.Params.Endpoint),
+		//				URL: o.Params.Endpoint,
 		//			}, nil
 		//		}
 		//		// returning EndpointNotFoundError will allow the service to fallback to it's default resolution
