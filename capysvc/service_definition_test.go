@@ -54,11 +54,13 @@ func TestService_Processor(t *testing.T) {
 }
 
 func TestService_RunProcessors(t *testing.T) {
-	imageFile, err := capyfs.CopyOnWriteFilesystem.Open("testdata/image_512x512.jpg")
+	capyfs.InitCopyOnWriteFilesystem()
+
+	imageFile, err := capyfs.Filesystem.Open("testdata/image_512x512.jpg")
 	if err != nil {
 		t.Fatal(err)
 	}
-	binFile, err := capyfs.CopyOnWriteFilesystem.Open("testdata/file_5kb.bin")
+	binFile, err := capyfs.Filesystem.Open("testdata/file_5kb.bin")
 	if err != nil {
 		t.Fatal(err)
 	}

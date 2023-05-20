@@ -2,6 +2,7 @@ package main
 
 import (
 	"capyfile/capyerr"
+	"capyfile/capyfs"
 	"capyfile/capysvc"
 	"capyfile/capysvc/common"
 	"capyfile/capysvc/httpio"
@@ -13,6 +14,8 @@ import (
 )
 
 func main() {
+	capyfs.InitOsFilesystem()
+
 	initLoggerErr := common.InitLogger()
 	if initLoggerErr != nil {
 		panic(initLoggerErr)

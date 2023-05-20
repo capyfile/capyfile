@@ -8,7 +8,9 @@ import (
 )
 
 func TestFileSizeValidateOperation_HandleFileOfAllowedSize(t *testing.T) {
-	file, err := capyfs.CopyOnWriteFilesystem.Open("testdata/file_1kb.bin")
+	capyfs.InitCopyOnWriteFilesystem()
+
+	file, err := capyfs.Filesystem.Open("testdata/file_1kb.bin")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,11 +42,13 @@ func TestFileSizeValidateOperation_HandleFileOfAllowedSize(t *testing.T) {
 }
 
 func TestFileSizeValidateOperation_HandleFilesOfAllowedSize(t *testing.T) {
-	file1Kb, err := capyfs.CopyOnWriteFilesystem.Open("testdata/file_1kb.bin")
+	capyfs.InitCopyOnWriteFilesystem()
+
+	file1Kb, err := capyfs.Filesystem.Open("testdata/file_1kb.bin")
 	if err != nil {
 		t.Fatal(err)
 	}
-	file2Kb, err := capyfs.CopyOnWriteFilesystem.Open("testdata/file_2kb.bin")
+	file2Kb, err := capyfs.Filesystem.Open("testdata/file_2kb.bin")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +83,9 @@ func TestFileSizeValidateOperation_HandleFilesOfAllowedSize(t *testing.T) {
 }
 
 func TestFileSizeValidateOperation_HandleFileOfNotAllowedSize(t *testing.T) {
-	file, err := capyfs.CopyOnWriteFilesystem.Open("testdata/file_2kb.bin")
+	capyfs.InitCopyOnWriteFilesystem()
+
+	file, err := capyfs.Filesystem.Open("testdata/file_2kb.bin")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,11 +123,13 @@ func TestFileSizeValidateOperation_HandleFileOfNotAllowedSize(t *testing.T) {
 }
 
 func TestFileSizeValidateOperation_HandleFilesOfNotAllowedSize(t *testing.T) {
-	file1Kb, err := capyfs.CopyOnWriteFilesystem.Open("testdata/file_1kb.bin")
+	capyfs.InitCopyOnWriteFilesystem()
+
+	file1Kb, err := capyfs.Filesystem.Open("testdata/file_1kb.bin")
 	if err != nil {
 		t.Fatal(err)
 	}
-	file2Kb, err := capyfs.CopyOnWriteFilesystem.Open("testdata/file_2kb.bin")
+	file2Kb, err := capyfs.Filesystem.Open("testdata/file_2kb.bin")
 	if err != nil {
 		t.Fatal(err)
 	}

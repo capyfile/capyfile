@@ -25,7 +25,9 @@ func (m mockPutObjectV2API) PutObject(
 }
 
 func TestS3UploadV2Operation_HandleSuccessfulFilesUpload(t *testing.T) {
-	file, err := capyfs.CopyOnWriteFilesystem.Open("testdata/file_5kb.bin")
+	capyfs.InitCopyOnWriteFilesystem()
+
+	file, err := capyfs.Filesystem.Open("testdata/file_5kb.bin")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +101,9 @@ func TestS3UploadV2Operation_HandleSuccessfulFilesUpload(t *testing.T) {
 }
 
 func TestS3UploadV2Operation_HandleFailedFilesUpload(t *testing.T) {
-	file, err := capyfs.CopyOnWriteFilesystem.Open("testdata/file_5kb.bin")
+	capyfs.InitCopyOnWriteFilesystem()
+
+	file, err := capyfs.Filesystem.Open("testdata/file_5kb.bin")
 	if err != nil {
 		t.Fatal(err)
 	}

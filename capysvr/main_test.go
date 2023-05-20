@@ -1,6 +1,7 @@
 package main
 
 import (
+	"capyfile/capyfs"
 	"capyfile/capysvc"
 	"capyfile/capysvc/common"
 	"encoding/json"
@@ -34,6 +35,8 @@ var testServiceDefinition = capysvc.Service{
 }
 
 func TestProcessFiles(t *testing.T) {
+	capyfs.InitCopyOnWriteFilesystem()
+
 	testLoggerInitErr := common.InitTestLogger()
 	if testLoggerInitErr != nil {
 		t.Errorf("expected error to be nil, got %v", testLoggerInitErr)

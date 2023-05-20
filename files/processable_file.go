@@ -1,10 +1,10 @@
 package files
 
 import (
+	"capyfile/capyfs"
 	"github.com/gabriel-vasile/mimetype"
 	gonanoid "github.com/matoous/go-nanoid/v2"
 	"github.com/spf13/afero"
-	"os"
 )
 
 // ProcessableFile The file that can be processed by the operations.
@@ -70,12 +70,18 @@ func (f *ProcessableFile) loadMime() error {
 		return nil
 	}
 
-	mime, err := mimetype.DetectFile(f.File.Name())
+	stat, err := f.File.Stat()
 	if err != nil {
 		return err
 	}
 
-	f.mime = mime
+	b := make([]byte, stat.Size())
+	_, err = f.File.ReadAt(b, 0)
+	if err != nil {
+		return err
+	}
+
+	f.mime = mimetype.Detect(b)
 
 	return nil
 }
@@ -90,7 +96,7 @@ func (f *ProcessableFile) FreeResources() error {
 }
 
 func (f *ProcessableFile) Remove() error {
-	return os.Remove(f.File.Name())
+	return capyfs.FilesystemUtils.Remove(f.File.Name())
 }
 
 func (f *ProcessableFile) SetFileProcessingError(fileProcessingError FileProcessingError) {

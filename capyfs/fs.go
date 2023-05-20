@@ -2,10 +2,21 @@ package capyfs
 
 import "github.com/spf13/afero"
 
-var OsFilesystem = afero.NewOsFs()
-var OsFilesystemUtils = afero.Afero{Fs: OsFilesystem}
+var Filesystem afero.Fs
+var FilesystemUtils afero.Afero
 
-var MemFilesystem = afero.NewMemMapFs()
+func InitOsFilesystem() {
+	Filesystem = afero.NewOsFs()
+	FilesystemUtils = afero.Afero{Fs: Filesystem}
+}
 
-// CopyOnWriteFilesystem Read only os filesystem with writable mem filesystem on top.
-var CopyOnWriteFilesystem = afero.NewCopyOnWriteFs(OsFilesystem, MemFilesystem)
+// InitCopyOnWriteFilesystem Read only os filesystem with writable mem filesystem on top.
+func InitCopyOnWriteFilesystem() {
+	filesystem := afero.NewCopyOnWriteFs(
+		afero.NewReadOnlyFs(afero.NewOsFs()),
+		afero.NewMemMapFs(),
+	)
+
+	Filesystem = filesystem
+	FilesystemUtils = afero.Afero{Fs: filesystem}
+}

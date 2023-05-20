@@ -7,7 +7,7 @@ import (
 )
 
 func WriteBytesToTempFileAndLeaveOpen(b []byte) (file afero.File, err error) {
-	file, err = capyfs.OsFilesystemUtils.TempFile("", "capyfile_")
+	file, err = capyfs.FilesystemUtils.TempFile("", "capyfile_")
 	if err != nil {
 		return nil, err
 	}
@@ -21,7 +21,7 @@ func WriteBytesToTempFileAndLeaveOpen(b []byte) (file afero.File, err error) {
 }
 
 func WriteReaderToTempFileAndLeaveOpen(r io.Reader) (file afero.File, err error) {
-	file, err = capyfs.OsFilesystemUtils.TempFile("", "capyfile_")
+	file, err = capyfs.FilesystemUtils.TempFile("", "capyfile_")
 	if err != nil {
 		return file, err
 	}
