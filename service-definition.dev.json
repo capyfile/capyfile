@@ -27,6 +27,19 @@
           "name": "metadata_cleanup"
         },
         {
+          "name": "image_convert",
+          "params": {
+            "toMimeType": {
+              "sourceType": "value",
+              "source": "image/jpeg"
+            },
+            "quality": {
+              "sourceType": "value",
+              "source": "high"
+            }
+          }
+        },
+        {
           "name": "s3_upload",
           "params": {
             "accessKeyId": {

@@ -94,13 +94,14 @@ func (o *Operation) OperationHandler(
 		return o.newFileTypeValidateOperation(parameterLoaderProvider)
 	case "metadata_cleanup":
 		return o.newMetadataCleanupOperation(parameterLoaderProvider)
+	case "image_convert":
+		return o.newImageConvertOperation(parameterLoaderProvider)
 	case "s3_upload":
 		return o.newS3UploadOperationHandler(parameterLoaderProvider)
 	case "s3_upload_v2":
 		return o.newS3UploadV2OperationHandler(parameterLoaderProvider)
 	default:
-		return nil, errors.New(
-			fmt.Sprintf("unknown operation \"%s\"", o.Name))
+		return nil, fmt.Errorf("unknown operation \"%s\"", o.Name)
 	}
 }
 
@@ -173,6 +174,57 @@ func (o *Operation) newMetadataCleanupOperation(
 	parameterLoaderProvider parameters.ParameterLoaderProvider,
 ) (*operations.MetadataCleanupOperation, error) {
 	return &operations.MetadataCleanupOperation{}, nil
+}
+
+func (o *Operation) newImageConvertOperation(
+	parameterLoaderProvider parameters.ParameterLoaderProvider,
+) (*operations.ImageConvertOperation, error) {
+	var toMimeType string
+	if toMimeTypeParameter, ok := o.Params["toMimeType"]; ok {
+		parameterLoader, loaderErr := parameterLoaderProvider.ParameterLoader(
+			toMimeTypeParameter.SourceType,
+			toMimeTypeParameter.Source,
+		)
+		if loaderErr != nil {
+			return nil, loaderErr
+		}
+
+		val, valErr := parameterLoader.LoadStringValue()
+		if valErr != nil {
+			return nil, valErr
+		}
+
+		toMimeType = val
+	} else {
+		return nil, errors.New("failed to retrieve \"toMimeType\" parameter")
+	}
+
+	var quality string
+	if toMimeTypeParameter, ok := o.Params["quality"]; ok {
+		parameterLoader, loaderErr := parameterLoaderProvider.ParameterLoader(
+			toMimeTypeParameter.SourceType,
+			toMimeTypeParameter.Source,
+		)
+		if loaderErr != nil {
+			return nil, loaderErr
+		}
+
+		val, valErr := parameterLoader.LoadStringValue()
+		if valErr != nil {
+			return nil, valErr
+		}
+
+		quality = val
+	} else {
+		return nil, errors.New("failed to retrieve \"quality\" parameter")
+	}
+
+	return &operations.ImageConvertOperation{
+		Params: &operations.ImageConvertOperationParams{
+			ToMimeType: toMimeType,
+			Quality:    quality,
+		},
+	}, nil
 }
 
 func (o *Operation) newS3UploadOperationHandler(

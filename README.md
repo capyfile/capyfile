@@ -83,6 +83,7 @@ Available operations are:
 * `file_size_validate` - check file size
 * `file_type_validate` - check file MIME type
 * `metadata_cleanup` - clear file metadata if possible (use exiftool)
+* `image_convert` - convert image to another format (use libvips)
 * `s3_upload` - upload file to S3-compatible storage
 * ... will be more
 
