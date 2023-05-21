@@ -8,7 +8,16 @@ import (
 	"os"
 )
 
-var ServiceDefinition *Service
+// So far Service is a service definition. Can be extended in the future.
+var serviceDefinition *Service
+
+func FindService(name string) *Service {
+	if serviceDefinition.Name == name {
+		return serviceDefinition
+	}
+
+	return nil
+}
 
 func LoadServiceDefinition() error {
 	sdUrl, sdUrlFound := os.LookupEnv("CAPYFILE_SERVICE_DEFINITION_URL")
@@ -18,7 +27,7 @@ func LoadServiceDefinition() error {
 			return err
 		}
 
-		ServiceDefinition = serviceDef
+		serviceDefinition = serviceDef
 
 		return nil
 	}
@@ -30,7 +39,7 @@ func LoadServiceDefinition() error {
 			return err
 		}
 
-		ServiceDefinition = serviceDef
+		serviceDefinition = serviceDef
 
 		return nil
 	}
@@ -39,7 +48,7 @@ func LoadServiceDefinition() error {
 }
 
 func LoadTestServiceDefinition(testServiceDef *Service) {
-	ServiceDefinition = testServiceDef
+	serviceDefinition = testServiceDef
 }
 
 func NewServiceDefinitionFromFile(filename string) (*Service, error) {

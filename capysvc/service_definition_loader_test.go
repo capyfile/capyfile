@@ -21,11 +21,11 @@ func TestLoadServiceDefinitionFromFile(t *testing.T) {
 		t.Fatalf("expected no error while loading service definition, got %v", sdErr)
 	}
 
-	if ServiceDefinition == nil {
+	if serviceDefinition == nil {
 		t.Fatalf("expected loaded ServiceDevinition, got nil")
 	}
 
-	serviceDefinitionAssertions(ServiceDefinition, t)
+	serviceDefinitionAssertions(serviceDefinition, t)
 }
 
 func TestLoadServiceDefinitionFromURL(t *testing.T) {
@@ -68,11 +68,11 @@ func TestLoadServiceDefinitionFromURL(t *testing.T) {
 		t.Fatalf("expected no error while loading service definition, got %v", sdErr)
 	}
 
-	if ServiceDefinition == nil {
+	if serviceDefinition == nil {
 		t.Fatalf("expected loaded ServiceDevinition, got nil")
 	}
 
-	serviceDefinitionAssertions(ServiceDefinition, t)
+	serviceDefinitionAssertions(serviceDefinition, t)
 }
 
 type operationTestCase struct {
@@ -87,28 +87,28 @@ type operationParamTestCase struct {
 
 func serviceDefinitionAssertions(sd *Service, t *testing.T) {
 	if sd.Version != "1.0" {
-		t.Fatalf("ServiceDefinition.Version = %s, want 1.0", sd.Version)
+		t.Fatalf("serviceDefinition.Version = %s, want 1.0", sd.Version)
 	}
 
 	if sd.Name != "messenger" {
-		t.Fatalf("ServiceDefinition.Name = %s, want messenger", sd.Name)
+		t.Fatalf("serviceDefinition.Name = %s, want messenger", sd.Name)
 	}
 
 	if len(sd.Processors) != 1 {
-		t.Fatalf("len(ServiceDefinition.Processors) = %d, want 1", len(sd.Processors))
+		t.Fatalf("len(serviceDefinition.Processors) = %d, want 1", len(sd.Processors))
 	}
 
 	idx := slices.IndexFunc(sd.Processors, func(p Processor) bool {
 		return p.Name == "avatar"
 	})
 	if idx == -1 {
-		t.Fatalf("Processor.Name != avatar, want Processor.Name == avatar")
+		t.Fatalf("FindProcessor.Name != avatar, want FindProcessor.Name == avatar")
 	}
 
 	for _, p := range sd.Processors {
 		if p.Name == "avatar" {
 			if len(p.Operations) != 4 {
-				t.Fatalf("len(Processor.Operations) = %d, want 4", len(p.Operations))
+				t.Fatalf("len(FindProcessor.Operations) = %d, want 4", len(p.Operations))
 			}
 
 			operationNamesCases := []string{

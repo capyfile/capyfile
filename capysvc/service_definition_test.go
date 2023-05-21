@@ -42,14 +42,14 @@ var testServiceDefinition = Service{
 func TestService_Processor(t *testing.T) {
 	var p *Processor
 
-	p = testServiceDefinition.Processor("photo")
+	p = testServiceDefinition.FindProcessor("photo")
 	if p == nil {
-		t.Fatalf("Service.Processor(photo) = nil, want photo processor")
+		t.Fatalf("Service.FindProcessor(photo) = nil, want photo processor")
 	}
 
-	p = testServiceDefinition.Processor("video")
+	p = testServiceDefinition.FindProcessor("video")
 	if p != nil {
-		t.Fatalf("Service.Processor(video) != nil, want nil")
+		t.Fatalf("Service.FindProcessor(video) != nil, want nil")
 	}
 }
 

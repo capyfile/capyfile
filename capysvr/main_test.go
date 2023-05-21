@@ -92,7 +92,7 @@ func TestProcessFiles(t *testing.T) {
 
 	w := httptest.NewRecorder()
 
-	processFiles(w, req)
+	Handler(w, req)
 
 	resp := w.Result()
 	defer resp.Body.Close()

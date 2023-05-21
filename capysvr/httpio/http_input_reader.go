@@ -28,7 +28,7 @@ func ReadInput(r *http.Request) (in []files.ProcessableFile, err error) {
 			return in, err
 		}
 
-		common.Logger.Info(
+		common.Logger.Debug(
 			"request body content extracted",
 			slog.String("filename", tempFile.Name()),
 		)
@@ -42,7 +42,7 @@ func ReadInput(r *http.Request) (in []files.ProcessableFile, err error) {
 		for _, fileHeader := range fileHeaders {
 			uploadedFile, fileOpenErr := fileHeader.Open()
 			if fileOpenErr != nil {
-				common.Logger.Info(
+				common.Logger.Error(
 					"failed to open uploaded file",
 					slog.Any("error", fileOpenErr),
 				)
@@ -52,7 +52,7 @@ func ReadInput(r *http.Request) (in []files.ProcessableFile, err error) {
 
 			f, fileWriteErr := capyutils.WriteReaderToTempFileAndLeaveOpen(uploadedFile)
 			if fileWriteErr != nil {
-				common.Logger.Info(
+				common.Logger.Error(
 					"failed to write uploaded file to tmp file",
 					slog.Any("error", fileWriteErr),
 				)
@@ -60,7 +60,7 @@ func ReadInput(r *http.Request) (in []files.ProcessableFile, err error) {
 				return in, fileWriteErr
 			}
 
-			common.Logger.Info(
+			common.Logger.Debug(
 				"multipart form data extracted",
 				slog.String("filename", f.Name()),
 			)

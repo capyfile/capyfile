@@ -17,7 +17,7 @@ type Service struct {
 	Processors []Processor `json:"processors"`
 }
 
-func (s *Service) Processor(processorName string) *Processor {
+func (s *Service) FindProcessor(processorName string) *Processor {
 	for _, p := range s.Processors {
 		if p.Name == processorName {
 			return &p
@@ -32,7 +32,7 @@ func (s *Service) RunProcessor(
 	processorName string,
 	in []files.ProcessableFile,
 ) (out []files.ProcessableFile, err error) {
-	proc := s.Processor(processorName)
+	proc := s.FindProcessor(processorName)
 	if proc == nil {
 		return out, capyerr.NewProcessorNotFoundError(processorName)
 	}
