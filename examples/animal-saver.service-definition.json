@@ -1,0 +1,70 @@
+{
+  "version": "1.0",
+  "name": "upload",
+  "processors": [
+    {
+      "name": "animal",
+      "operations": [
+        {
+          "name": "file_size_validate",
+          "params": {
+            "maxFileSize": {
+              "sourceType": "http_header",
+              "source": "X-Capyfile-FileSizeValidate-MaxFileSize"
+            }
+          }
+        },
+        {
+          "name": "file_type_validate",
+          "params": {
+            "allowedMimeTypes": {
+              "sourceType": "http_header",
+              "source": "X-Capyfile-FileTypeValidate-AllowedMimeTypes"
+            }
+          }
+        },
+        {
+          "name": "metadata_cleanup"
+        },
+        {
+          "name": "image_convert",
+          "params": {
+            "toMimeType": {
+              "sourceType": "value",
+              "source": "image/jpeg"
+            },
+            "quality": {
+              "sourceType": "value",
+              "source": "high"
+            }
+          }
+        },
+        {
+          "name": "s3_upload",
+          "params": {
+            "accessKeyId": {
+              "sourceType": "secret",
+              "source": "aws_access_key_id"
+            },
+            "secretAccessKey": {
+              "sourceType": "secret",
+              "source": "aws_secret_access_key"
+            },
+            "endpoint": {
+              "sourceType": "env_var",
+              "source": "AWS_ENDPOINT"
+            },
+            "region": {
+              "sourceType": "env_var",
+              "source": "AWS_REGION"
+            },
+            "bucket": {
+              "sourceType": "http_header",
+              "source": "X-Capyfile-S3Upload-Bucket"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
