@@ -34,6 +34,16 @@ func NewProcessableFile(file afero.File) *ProcessableFile {
 	}
 }
 
+func NewUnreadableProcessableFile(filepath string, readErr FileProcessingError) *ProcessableFile {
+	return &ProcessableFile{
+		NanoID: gonanoid.Must(),
+		Metadata: &ProcessableFileMetadata{
+			OriginalFilename: filepath,
+		},
+		FileProcessingError: readErr,
+	}
+}
+
 // ReplaceFile Replaces the file associated with the processable file.
 // Here it also updates everything that is related to it, the things like MIME type.
 func (f *ProcessableFile) ReplaceFile(file afero.File) {
