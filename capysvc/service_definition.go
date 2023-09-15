@@ -37,14 +37,7 @@ func (s *Service) RunProcessor(
 		return out, capyerr.NewProcessorNotFoundError(processorName)
 	}
 
-	var processorContext processor.Context
-	if serverContext, ok := serviceContext.(*service.ServerContext); ok {
-		processorContext = serverContext.ProcessorContext()
-	} else {
-		return out, fmt.Errorf("unknown service context %v", serverContext)
-	}
-
-	return proc.RunOperations(processorContext, in)
+	return proc.RunOperations(serviceContext.ProcessorContext(), in)
 }
 
 type Processor struct {
@@ -113,6 +106,26 @@ type OperationParameter struct {
 func (o *Operation) newFileSizeValidateOperation(
 	parameterLoaderProvider parameters.ParameterLoaderProvider,
 ) (*operations.FileSizeValidateOperation, error) {
+	var minFileSize int64 = 0
+	if minFileSizeParameter, ok := o.Params["minFileSize"]; ok {
+		parameterLoader, loaderErr := parameterLoaderProvider.ParameterLoader(
+			minFileSizeParameter.SourceType,
+			minFileSizeParameter.Source,
+		)
+		if loaderErr != nil {
+			return nil, loaderErr
+		}
+
+		val, valErr := parameterLoader.LoadIntValue()
+		if valErr != nil {
+			return nil, valErr
+		}
+
+		minFileSize = val
+	} else {
+		return nil, errors.New("failed to retrieve \"minFileSize\" parameter")
+	}
+
 	var maxFileSize int64 = 0
 	if maxFileSizeParameter, ok := o.Params["maxFileSize"]; ok {
 		parameterLoader, loaderErr := parameterLoaderProvider.ParameterLoader(
@@ -135,6 +148,7 @@ func (o *Operation) newFileSizeValidateOperation(
 
 	return &operations.FileSizeValidateOperation{
 		Params: &operations.FileSizeValidateOperationParams{
+			MinFileSize: minFileSize,
 			MaxFileSize: maxFileSize,
 		},
 	}, nil

@@ -9,6 +9,7 @@ type FileSizeValidateOperation struct {
 }
 
 type FileSizeValidateOperationParams struct {
+	MinFileSize int64
 	MaxFileSize int64
 }
 
@@ -20,12 +21,22 @@ func (o *FileSizeValidateOperation) Handle(in []files.ProcessableFile) ([]files.
 			continue
 		}
 
-		if o.Params.MaxFileSize > 0 {
-			fileStat, err := processableFile.File.Stat()
-			if err != nil {
-				return in, err
-			}
+		fileStat, err := processableFile.File.Stat()
+		if err != nil {
+			return in, err
+		}
 
+		if o.Params.MinFileSize > 0 {
+			if fileStat.Size() < o.Params.MinFileSize {
+				processableFile.SetFileProcessingError(
+					NewFileSizeIsTooSmallError(o.Params.MinFileSize, fileStat.Size()),
+				)
+
+				continue
+			}
+		}
+
+		if o.Params.MaxFileSize > 0 {
 			if fileStat.Size() > o.Params.MaxFileSize {
 				processableFile.SetFileProcessingError(
 					NewFileSizeIsTooBigError(o.Params.MaxFileSize, fileStat.Size()),

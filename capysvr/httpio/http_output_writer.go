@@ -117,9 +117,16 @@ func (dto *ResponseDTO) writeProcessedFile(processableFile *files.ProcessableFil
 
 	var errorMessage = ""
 
+	var fileSizeIsTooSmall *operations.FileSizeIsTooSmallError
 	var fileSizeIsTooBig *operations.FileSizeIsTooBigError
 	var fileMimeTypeIsNotAllowed *operations.FileMimeTypeIsNotAllowedError
 	switch {
+	case errors.As(processableFile.FileProcessingError, &fileSizeIsTooSmall):
+		errorMessage = fmt.Sprintf(
+			"file size can not be less than %s",
+			humanize.IBytes(uint64(fileSizeIsTooSmall.Data.MinFileSize)),
+		)
+		break
 	case errors.As(processableFile.FileProcessingError, &fileSizeIsTooBig):
 		errorMessage = fmt.Sprintf(
 			"file size can not be greater than %s",
