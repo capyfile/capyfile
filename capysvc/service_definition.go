@@ -90,9 +90,13 @@ func (o *Operation) OperationHandler(
 	case "image_convert":
 		return o.newImageConvertOperation(parameterLoaderProvider)
 	case "s3_upload":
-		return o.newS3UploadOperationHandler(parameterLoaderProvider)
+		return o.newS3UploadOperation(parameterLoaderProvider)
 	case "s3_upload_v2":
-		return o.newS3UploadV2OperationHandler(parameterLoaderProvider)
+		return o.newS3UploadV2Operation(parameterLoaderProvider)
+	case "filesystem_input_read":
+		return o.newFilesystemInputReadOperation(parameterLoaderProvider)
+	case "filesystem_input_write":
+		return o.newFilesystemInputWriteOperation(parameterLoaderProvider)
 	default:
 		return nil, fmt.Errorf("unknown operation \"%s\"", o.Name)
 	}
@@ -241,7 +245,7 @@ func (o *Operation) newImageConvertOperation(
 	}, nil
 }
 
-func (o *Operation) newS3UploadOperationHandler(
+func (o *Operation) newS3UploadOperation(
 	parameterLoaderProvider parameters.ParameterLoaderProvider,
 ) (*operations.S3UploadOperation, error) {
 	var accessKeyId = ""
@@ -374,7 +378,7 @@ func (o *Operation) newS3UploadOperationHandler(
 	}, nil
 }
 
-func (o *Operation) newS3UploadV2OperationHandler(
+func (o *Operation) newS3UploadV2Operation(
 	parameterLoaderProvider parameters.ParameterLoaderProvider,
 ) (*operations.S3UploadV2Operation, error) {
 	var accessKeyId = ""
@@ -503,6 +507,87 @@ func (o *Operation) newS3UploadV2OperationHandler(
 			Endpoint:        endpoint,
 			Region:          region,
 			Bucket:          bucket,
+		},
+	}, nil
+}
+
+func (o *Operation) newFilesystemInputReadOperation(
+	parameterLoaderProvider parameters.ParameterLoaderProvider,
+) (*operations.FilesystemInputReadOperation, error) {
+	var target string
+	if targetParameter, ok := o.Params["target"]; ok {
+		parameterLoader, loaderErr := parameterLoaderProvider.ParameterLoader(
+			targetParameter.SourceType,
+			targetParameter.Source,
+		)
+		if loaderErr != nil {
+			return nil, loaderErr
+		}
+
+		val, valErr := parameterLoader.LoadStringValue()
+		if valErr != nil {
+			return nil, valErr
+		}
+
+		target = val
+	} else {
+		return nil, errors.New("failed to retrieve \"target\" parameter")
+	}
+
+	return &operations.FilesystemInputReadOperation{
+		Params: &operations.FilesystemInputReadOperationParams{
+			Target: target,
+		},
+	}, nil
+}
+
+func (o *Operation) newFilesystemInputWriteOperation(
+	parameterLoaderProvider parameters.ParameterLoaderProvider,
+) (*operations.FilesystemInputWriteOperation, error) {
+	var destination string
+	if destinationParameter, ok := o.Params["destination"]; ok {
+		parameterLoader, loaderErr := parameterLoaderProvider.ParameterLoader(
+			destinationParameter.SourceType,
+			destinationParameter.Source,
+		)
+		if loaderErr != nil {
+			return nil, loaderErr
+		}
+
+		val, valErr := parameterLoader.LoadStringValue()
+		if valErr != nil {
+			return nil, valErr
+		}
+
+		destination = val
+	} else {
+		return nil, errors.New("failed to retrieve \"destination\" parameter")
+	}
+
+	var useOriginalFilename bool
+	if destinationParameter, ok := o.Params["useOriginalFilename"]; ok {
+		parameterLoader, loaderErr := parameterLoaderProvider.ParameterLoader(
+			destinationParameter.SourceType,
+			destinationParameter.Source,
+		)
+		if loaderErr != nil {
+			return nil, loaderErr
+		}
+
+		val, valErr := parameterLoader.LoadBoolValue()
+		if valErr != nil {
+			return nil, valErr
+		}
+
+		useOriginalFilename = val
+	} else {
+		return nil, errors.New("failed to retrieve \"useOriginalFilename\" parameter")
+	}
+
+	return &operations.FilesystemInputWriteOperation{
+		Params: &operations.FilesystemInputWriteOperationParams{
+			Destination:         destination,
+			UseOriginalFilename: useOriginalFilename,
 		},
 	}, nil
 }

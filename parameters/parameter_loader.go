@@ -17,6 +17,7 @@ type ParameterLoaderProvider interface {
 
 // ParameterLoader Interface to implement parameter loaders.
 type ParameterLoader interface {
+	LoadBoolValue() (bool, error)
 	LoadIntValue() (int64, error)
 	LoadStringValue() (string, error)
 	LoadStringArrayValue() ([]string, error)

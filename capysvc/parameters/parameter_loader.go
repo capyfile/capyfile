@@ -51,6 +51,15 @@ type genericParameterLoader struct {
 	etcdClient *clientv3.Client
 }
 
+func (parameterLoader *genericParameterLoader) LoadBoolValue() (bool, error) {
+	return retrieveBoolParameterValue(
+		parameterLoader.sourceType,
+		parameterLoader.source,
+		parameterLoader.req,
+		parameterLoader.etcdClient,
+	)
+}
+
 func (parameterLoader *genericParameterLoader) LoadIntValue() (int64, error) {
 	return retrieveIntParameterValue(
 		parameterLoader.sourceType,
