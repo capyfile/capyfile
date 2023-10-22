@@ -2,6 +2,7 @@ package operations
 
 import (
 	"capyfile/files"
+	"golang.org/x/exp/slices"
 	"os"
 	"testing"
 )
@@ -21,7 +22,7 @@ func TestFileTypeValidateOperation_HandleFileOfAllowedType(t *testing.T) {
 			AllowedMimeTypes: []string{"image/jpeg", "image/png", "image/webp"},
 		},
 	}
-	out, err := operation.Handle(in)
+	out, err := operation.Handle(in, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +59,7 @@ func TestFileTypeValidateOperation_HandleFilesOfAllowedType(t *testing.T) {
 			AllowedMimeTypes: []string{"image/jpeg", "image/png", "image/webp"},
 		},
 	}
-	out, err := operation.Handle(in)
+	out, err := operation.Handle(in, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +93,7 @@ func TestFileTypeValidateOperation_HandleFileOfNotAllowedType(t *testing.T) {
 			AllowedMimeTypes: []string{"image/jpeg", "image/webp"},
 		},
 	}
-	out, err := operation.Handle(in)
+	out, err := operation.Handle(in, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +137,7 @@ func TestFileTypeValidateOperation_HandleFilesOfNotAllowedType(t *testing.T) {
 			AllowedMimeTypes: []string{"image/webp"},
 		},
 	}
-	out, err := operation.Handle(in)
+	out, err := operation.Handle(in, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +181,7 @@ func TestFileTypeValidateOperation_HandleFilesOfAllowedAndNotAllowedTypes(t *tes
 			AllowedMimeTypes: []string{"image/jpeg"},
 		},
 	}
-	out, err := operation.Handle(in)
+	out, err := operation.Handle(in, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -189,12 +190,18 @@ func TestFileTypeValidateOperation_HandleFilesOfAllowedAndNotAllowedTypes(t *tes
 		t.Fatalf("len(out) = %d, want 2", len(out))
 	}
 
-	processableFileImageJpg := out[0]
+	processableFileImageJpgIdx := slices.IndexFunc(out, func(pf files.ProcessableFile) bool {
+		return pf.File.Name() == osFileImageJpg.Name()
+	})
+	processableFileImageJpg := out[processableFileImageJpgIdx]
 	if processableFileImageJpg.FileProcessingError != nil {
 		t.Fatalf("FileProcessingError.Code() = %s, want nil", processableFileImageJpg.FileProcessingError.Code())
 	}
 
-	processableFileImageWebp := out[1]
+	processableFileImageWebpIdx := slices.IndexFunc(out, func(pf files.ProcessableFile) bool {
+		return pf.File.Name() == osFileImageWebp.Name()
+	})
+	processableFileImageWebp := out[processableFileImageWebpIdx]
 	if processableFileImageWebp.FileProcessingError == nil {
 		t.Fatalf("FileProcessingError = nil, want !nil")
 	}

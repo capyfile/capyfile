@@ -8,6 +8,7 @@ import (
 
 // FilesystemInputReadOperation reads input from the filesystem for further processing.
 type FilesystemInputReadOperation struct {
+	Name   string
 	Params *FilesystemInputReadOperationParams
 }
 
@@ -16,22 +17,58 @@ type FilesystemInputReadOperationParams struct {
 	Target string
 }
 
-func (o *FilesystemInputReadOperation) Handle(in []files.ProcessableFile) ([]files.ProcessableFile, error) {
+func (o *FilesystemInputReadOperation) OperationName() string {
+	return o.Name
+}
+
+func (o *FilesystemInputReadOperation) AllowConcurrency() bool {
+	return false
+}
+
+func (o *FilesystemInputReadOperation) Handle(
+	in []files.ProcessableFile,
+	errorCh chan<- OperationError,
+	notificationCh chan<- OperationNotification,
+) (out []files.ProcessableFile, err error) {
 	matches, matchesErr := afero.Glob(capyfs.Filesystem, o.Params.Target)
 	if matchesErr != nil {
-		return in, matchesErr
+		if errorCh != nil {
+			errorCh <- o.errorBuilder().Error(matchesErr)
+		}
+
+		return out, matchesErr
 	}
 
 	for _, match := range matches {
 		f, fileOpenErr := capyfs.Filesystem.Open(match)
 		if fileOpenErr != nil {
-			in = append(in, *files.NewUnreadableProcessableFile(match, NewFileInputIsUnreadableError(fileOpenErr)))
+			if errorCh != nil {
+				errorCh <- o.errorBuilder().Error(fileOpenErr)
+			}
 
 			continue
 		}
 
-		in = append(in, *files.NewProcessableFile(f))
+		pf := files.NewProcessableFile(f)
+
+		if notificationCh != nil {
+			notificationCh <- o.notificationBuilder().Finished("file read finished", &pf)
+		}
+
+		out = append(out, pf)
 	}
 
-	return in, nil
+	return out, nil
+}
+
+func (o *FilesystemInputReadOperation) notificationBuilder() *OperationNotificationBuilder {
+	return &OperationNotificationBuilder{
+		OperationName: o.Name,
+	}
+}
+
+func (o *FilesystemInputReadOperation) errorBuilder() *OperationErrorBuilder {
+	return &OperationErrorBuilder{
+		OperationName: o.Name,
+	}
 }

@@ -36,7 +36,7 @@ func (s *Server) Init() error {
 	// layer.
 	capyfs.InitOsFilesystem()
 
-	initLoggerErr := common.InitLogger()
+	initLoggerErr := common.InitDefaultServerLogger()
 	if initLoggerErr != nil {
 		return initLoggerErr
 	}
@@ -49,7 +49,7 @@ func (s *Server) Init() error {
 	}
 
 	// Load the service definition after which the server is ready to be running.
-	sdLoadErr := capysvc.LoadServiceDefinition()
+	sdLoadErr := capysvc.LoadServiceDefinition("")
 	if sdLoadErr != nil {
 		return sdLoadErr
 	}
@@ -178,6 +178,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// This functionality is going to be moved to the operation like "http_input_read".
 	in, inputReaderErr := httpio.ReadInput(r)
 	if inputReaderErr != nil {
 		_ = httpio.WriteError(
@@ -212,6 +213,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Can be updated to run the processor concurrently.
 	out, procErr := svc.RunProcessor(
 		&service.ServerContext{
 			Req:        r,

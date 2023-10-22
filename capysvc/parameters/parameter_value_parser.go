@@ -411,5 +411,9 @@ func anyToStringArrayValue(value any) []string {
 		return values
 	}
 
+	if v, ok := value.([]string); ok {
+		return v
+	}
+
 	return nil
 }

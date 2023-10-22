@@ -26,7 +26,7 @@ func TestImageConvertOperation_HandlePngToJpgConversion(t *testing.T) {
 			Quality:    "best",
 		},
 	}
-	out, err := operation.Handle(in)
+	out, err := operation.Handle(in, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +72,7 @@ func TestImageConvertOperation_HandlePngToNotAllowedTypeConversion(t *testing.T)
 			Quality:    "best",
 		},
 	}
-	_, err = operation.Handle(in)
+	_, err = operation.Handle(in, nil, nil)
 	if err == nil {
 		t.Fatal("err = nil, want error")
 	}

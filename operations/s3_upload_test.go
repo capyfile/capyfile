@@ -1,7 +1,6 @@
 package operations
 
 import (
-	"capyfile/capyerr"
 	"capyfile/capyfs"
 	"capyfile/files"
 	"context"
@@ -35,7 +34,7 @@ func TestS3UploadOperation_HandleSuccessfulFilesUpload(t *testing.T) {
 
 	processableFile := files.NewProcessableFile(file)
 	in := []files.ProcessableFile{
-		*processableFile,
+		processableFile,
 	}
 
 	operation := &S3UploadOperation{
@@ -67,7 +66,7 @@ func TestS3UploadOperation_HandleSuccessfulFilesUpload(t *testing.T) {
 			},
 		),
 	}
-	out, err := operation.Handle(in)
+	out, err := operation.Handle(in, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +110,7 @@ func TestS3UploadOperation_HandleFailedFilesUpload(t *testing.T) {
 
 	processableFile := files.NewProcessableFile(file)
 	in := []files.ProcessableFile{
-		*processableFile,
+		processableFile,
 	}
 
 	operation := &S3UploadOperation{
@@ -143,22 +142,41 @@ func TestS3UploadOperation_HandleFailedFilesUpload(t *testing.T) {
 			},
 		),
 	}
-	_, err = operation.Handle(in)
 
-	if err == nil {
-		t.Fatal("expected S3 upload error, got nil")
+	out, handleErr := operation.Handle(in, nil, nil)
+
+	if handleErr != nil {
+		t.Fatal(handleErr)
 	}
 
-	var ocType *capyerr.OperationConfigurationType
-	if errors.As(err, &ocType) {
-		if ocType.Code() != ErrorCodeS3UploadOperationConfiguration {
-			t.Fatalf(
-				"expected error %s code, got error %s code",
-				ErrorCodeS3UploadOperationConfiguration,
-				ocType.Code(),
-			)
-		}
-	} else {
-		t.Fatalf("expected %v error, got %v error", ocType, err)
+	if len(out) != 1 {
+		t.Fatalf("len(out) = %d, want 1", len(out))
+	}
+
+	if out[0].FileProcessingError == nil {
+		t.Fatalf("FileProcessingError = nil, want !nil")
+	}
+
+	var s3FileUploadFailureError *S3FileUploadFailureError
+	errors.As(out[0].FileProcessingError, &s3FileUploadFailureError)
+
+	if s3FileUploadFailureError == nil {
+		t.Fatalf("FileProcessingError = nil, want !nil")
+	}
+
+	if s3FileUploadFailureError.Code() != ErrorCodeS3FileUploadFailure {
+		t.Fatalf(
+			"FileProcessingError.Code() = %s, want %s",
+			s3FileUploadFailureError.Code(),
+			ErrorCodeS3FileUploadFailure,
+		)
+	}
+
+	if s3FileUploadFailureError.Data.OrigErr.Error() != "whatever error" {
+		t.Fatalf(
+			"FileProcessingError.Error() = %s, want %s",
+			out[0].FileProcessingError.Error(),
+			"whatever error",
+		)
 	}
 }

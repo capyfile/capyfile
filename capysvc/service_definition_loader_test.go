@@ -16,7 +16,7 @@ func TestLoadServiceDefinitionFromFile(t *testing.T) {
 		t.Fatalf("expected no error while setting CAPYFILE_SERVICE_DEFINITION_FILE env varm got %v", setenvErr)
 	}
 
-	sdErr := LoadServiceDefinition()
+	sdErr := LoadServiceDefinition("")
 	if sdErr != nil {
 		t.Fatalf("expected no error while loading service definition, got %v", sdErr)
 	}
@@ -63,7 +63,7 @@ func TestLoadServiceDefinitionFromURL(t *testing.T) {
 			setenvErr)
 	}
 
-	sdErr := LoadServiceDefinition()
+	sdErr := LoadServiceDefinition("")
 	if sdErr != nil {
 		t.Fatalf("expected no error while loading service definition, got %v", sdErr)
 	}

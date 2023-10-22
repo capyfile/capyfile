@@ -34,7 +34,7 @@ func TestS3UploadV2Operation_HandleSuccessfulFilesUpload(t *testing.T) {
 
 	processableFile := files.NewProcessableFile(file)
 	in := []files.ProcessableFile{
-		*processableFile,
+		processableFile,
 	}
 
 	operation := &S3UploadV2Operation{
@@ -110,7 +110,7 @@ func TestS3UploadV2Operation_HandleFailedFilesUpload(t *testing.T) {
 
 	processableFile := files.NewProcessableFile(file)
 	in := []files.ProcessableFile{
-		*processableFile,
+		processableFile,
 	}
 
 	operation := &S3UploadV2Operation{

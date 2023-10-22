@@ -3,6 +3,7 @@ package operations
 import (
 	"capyfile/capyfs"
 	"capyfile/files"
+	"golang.org/x/exp/slices"
 	"os"
 	"testing"
 )
@@ -24,7 +25,7 @@ func TestFileSizeValidateOperation_HandleFileOfAllowedMaxSize(t *testing.T) {
 			MaxFileSize: 2048,
 		},
 	}
-	out, err := operation.Handle(in)
+	out, err := operation.Handle(in, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +59,7 @@ func TestFileSizeValidateOperation_HandleFileOfAllowedMinSize(t *testing.T) {
 			MinFileSize: 512,
 		},
 	}
-	out, err := operation.Handle(in)
+	out, err := operation.Handle(in, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,7 +99,7 @@ func TestFileSizeValidateOperation_HandleFilesOfAllowedSize(t *testing.T) {
 			MaxFileSize: 2048,
 		},
 	}
-	out, err := operation.Handle(in)
+	out, err := operation.Handle(in, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,7 +135,7 @@ func TestFileSizeValidateOperation_HandleFileOfNotAllowedSize(t *testing.T) {
 			MaxFileSize: 1048,
 		},
 	}
-	out, err := operation.Handle(in)
+	out, err := operation.Handle(in, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -175,7 +176,7 @@ func TestFileSizeValidateOperation_HandleFileOfNotAllowedMinSize(t *testing.T) {
 			MinFileSize: 2048,
 		},
 	}
-	out, err := operation.Handle(in)
+	out, err := operation.Handle(in, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -222,7 +223,7 @@ func TestFileSizeValidateOperation_HandleFilesOfNotAllowedSize(t *testing.T) {
 			MaxFileSize: 2048 - 1,
 		},
 	}
-	out, err := operation.Handle(in)
+	out, err := operation.Handle(in, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -231,7 +232,10 @@ func TestFileSizeValidateOperation_HandleFilesOfNotAllowedSize(t *testing.T) {
 		t.Fatalf("len(out) = %d, want 2", len(out))
 	}
 
-	processableFile1Kb := out[0]
+	processableFile1KbIdx := slices.IndexFunc(out, func(pf files.ProcessableFile) bool {
+		return pf.File.Name() == file1Kb.Name()
+	})
+	processableFile1Kb := out[processableFile1KbIdx]
 	if processableFile1Kb.FileProcessingError == nil {
 		t.Fatalf("FileProcessingError = nil, want !nil")
 	}
@@ -243,7 +247,10 @@ func TestFileSizeValidateOperation_HandleFilesOfNotAllowedSize(t *testing.T) {
 		)
 	}
 
-	processableFile2Kb := out[1]
+	processableFile2KbIdx := slices.IndexFunc(out, func(pf files.ProcessableFile) bool {
+		return pf.File.Name() == file2Kb.Name()
+	})
+	processableFile2Kb := out[processableFile2KbIdx]
 	if processableFile2Kb.FileProcessingError == nil {
 		t.Fatalf("FileProcessingError = nil, want !nil")
 	}
@@ -276,7 +283,7 @@ func TestFileSizeValidateOperation_HandleFilesOfAllowedAndNotAllowedSizes(t *tes
 			MaxFileSize: 2048,
 		},
 	}
-	out, err := operation.Handle(in)
+	out, err := operation.Handle(in, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -285,12 +292,18 @@ func TestFileSizeValidateOperation_HandleFilesOfAllowedAndNotAllowedSizes(t *tes
 		t.Fatalf("len(out) = %d, want 2", len(out))
 	}
 
-	processableFile2Kb := out[0]
-	if processableFile2Kb.FileProcessingError != nil {
-		t.Fatalf("FileProcessingError.Code() = %s, want nil", processableFile2Kb.FileProcessingError.Code())
+	processableFile1KbIdx := slices.IndexFunc(out, func(pf files.ProcessableFile) bool {
+		return pf.File.Name() == osFile1Kb.Name()
+	})
+	processableFile1Kb := out[processableFile1KbIdx]
+	if processableFile1Kb.FileProcessingError != nil {
+		t.Fatalf("FileProcessingError.Code() = %s, want nil", processableFile1Kb.FileProcessingError.Code())
 	}
 
-	processableFile5Kb := out[1]
+	processableFile5KbIdx := slices.IndexFunc(out, func(pf files.ProcessableFile) bool {
+		return pf.File.Name() == osFile5Kb.Name()
+	})
+	processableFile5Kb := out[processableFile5KbIdx]
 	if processableFile5Kb.FileProcessingError == nil {
 		t.Fatalf("FileProcessingError = nil, want !nil")
 	}

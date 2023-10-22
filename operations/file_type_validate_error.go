@@ -33,3 +33,31 @@ func (e *FileMimeTypeIsNotAllowedError) Code() string {
 func (e *FileMimeTypeIsNotAllowedError) Error() string {
 	return "file MIME type is not allowed"
 }
+
+const ErrorCodeFileMimeTypeCanNotBeDetermined = "FILE_MIME_TYPE_CAN_NOT_BE_DETERMINED"
+
+func NewFileMimeTypeCanNotBeDeterminedError(origErr error) *FileMimeTypeCanNotBeDeterminedError {
+	return &FileMimeTypeCanNotBeDeterminedError{
+		Data: &FileMimeTypeCanNotBeDeterminedErrorData{
+			OrigErr: origErr,
+		},
+	}
+}
+
+type FileMimeTypeCanNotBeDeterminedError struct {
+	files.FileProcessingError
+
+	Data *FileMimeTypeCanNotBeDeterminedErrorData
+}
+
+type FileMimeTypeCanNotBeDeterminedErrorData struct {
+	OrigErr error
+}
+
+func (e *FileMimeTypeCanNotBeDeterminedError) Code() string {
+	return ErrorCodeFileMimeTypeCanNotBeDetermined
+}
+
+func (e *FileMimeTypeCanNotBeDeterminedError) Error() string {
+	return "file MIME type can not be determined"
+}

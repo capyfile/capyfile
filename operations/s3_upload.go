@@ -4,6 +4,7 @@ import (
 	"capyfile/capyerr"
 	"capyfile/files"
 	"context"
+	"errors"
 	"fmt"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -13,6 +14,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 	"net/url"
 	"strings"
+	"sync"
 )
 
 const ErrorCodeS3UploadOperationConfiguration = "S3_UPLOAD_OPERATION_CONFIGURATION"
@@ -29,8 +31,17 @@ type PutObjectAPI interface {
 }
 
 type S3UploadOperation struct {
+	Name         string
 	Params       *S3UploadOperationParams
 	PutObjectAPI PutObjectAPI
+}
+
+func (o *S3UploadOperation) OperationName() string {
+	return o.Name
+}
+
+func (o *S3UploadOperation) AllowConcurrency() bool {
+	return true
 }
 
 type S3UploadOperationParams struct {
@@ -86,60 +97,134 @@ func (p *S3UploadOperationParams) compileFileUrl(key string) (string, error) {
 	return u.String(), nil
 }
 
-func (o *S3UploadOperation) Handle(in []files.ProcessableFile) ([]files.ProcessableFile, error) {
+func (o *S3UploadOperation) Handle(
+	in []files.ProcessableFile,
+	errorCh chan<- OperationError,
+	notificationCh chan<- OperationNotification,
+) (out []files.ProcessableFile, err error) {
 	if o.PutObjectAPI == nil {
 		initErr := o.InitPutObjectAPI()
 		if initErr != nil {
-			return in, initErr
-		}
-	}
-
-	for i := range in {
-		var processableFile = &in[i]
-
-		if processableFile.HasFileProcessingError() {
-			continue
-		}
-
-		// Ensure that we are at the beginning of the file so S3 SDK starts reading it from the beginning.
-		_, fsErr := processableFile.File.Seek(0, 0)
-		if fsErr != nil {
-			return in, fsErr
-		}
-
-		_, err := o.PutObjectAPI.PutObjectWithContext(context.TODO(), &s3.PutObjectInput{
-			Bucket: aws.String(o.Params.Bucket),
-			Key:    aws.String(processableFile.GeneratedFilename()),
-			Body:   processableFile.File,
-		})
-		if err != nil {
-			if aerr, ok := err.(awserr.Error); ok {
-				switch aerr.Code() {
-				case s3.ErrCodeNoSuchBucket:
-					return in, capyerr.NewOperationConfigurationError(
-						ErrorCodeS3UploadOperationConfiguration,
-						"storage bucket does not exist",
-						err,
-					)
-				}
+			if errorCh != nil {
+				errorCh <- o.errorBuilder().Error(
+					errors.New("put object API can not be initialized"),
+				)
 			}
 
-			return in, capyerr.NewOperationConfigurationError(
+			return out, capyerr.NewOperationConfigurationError(
 				ErrorCodeS3UploadOperationConfiguration,
-				"request to S3 storage has failed",
-				err,
+				"put object API can not be initialized",
+				initErr,
 			)
 		}
-
-		fileUrl, fileUrlError := o.Params.compileFileUrl(processableFile.GeneratedFilename())
-		if fileUrlError != nil {
-			return in, fileUrlError
-		}
-
-		processableFile.AddOperationMetadata(MetadataKeyS3UploadFileUrl, fileUrl)
 	}
 
-	return in, nil
+	var wg sync.WaitGroup
+
+	outHolder := newOutputHolder()
+
+	for i := range in {
+		wg.Add(1)
+
+		var pf = &in[i]
+
+		go func(pf *files.ProcessableFile) {
+			defer wg.Done()
+
+			if notificationCh != nil {
+				notificationCh <- o.notificationBuilder().Started("S3 file upload has started", pf)
+			}
+
+			// Ensure that we are at the beginning of the file so S3 SDK starts reading it from the beginning.
+			_, fsErr := pf.File.Seek(0, 0)
+			if fsErr != nil {
+				pf.SetFileProcessingError(
+					NewFileReadOffsetCanNotBeSetError(fsErr),
+				)
+
+				if errorCh != nil {
+					errorCh <- o.errorBuilder().ProcessableFileError(pf, fsErr)
+				}
+				if notificationCh != nil {
+					notificationCh <- o.notificationBuilder().Failed(
+						"can not to set read offset for the file", pf, fsErr)
+				}
+
+				outHolder.AppendToOut(pf)
+
+				return
+			}
+
+			_, putObjErr := o.PutObjectAPI.PutObjectWithContext(context.TODO(), &s3.PutObjectInput{
+				Bucket: aws.String(o.Params.Bucket),
+				Key:    aws.String(pf.GeneratedFilename()),
+				Body:   pf.File,
+			})
+			if putObjErr != nil {
+				pf.SetFileProcessingError(
+					NewS3FileUploadFailureError(putObjErr),
+				)
+
+				if errorCh != nil {
+					errorCh <- o.errorBuilder().ProcessableFileError(pf, putObjErr)
+				}
+
+				var aerr awserr.Error
+				if errors.As(putObjErr, &aerr) {
+					switch aerr.Code() {
+					case s3.ErrCodeNoSuchBucket:
+						if notificationCh != nil {
+							notificationCh <- o.notificationBuilder().Failed(
+								"can not upload the file because S3 storage bucket does not exist", pf, putObjErr)
+						}
+					default:
+						if errorCh != nil {
+							errorCh <- o.errorBuilder().ProcessableFileError(pf, fsErr)
+						}
+						if notificationCh != nil {
+							notificationCh <- o.notificationBuilder().Failed(
+								"can not upload the file because the request to S3 storage has failed", pf, fsErr)
+						}
+					}
+				}
+
+				if notificationCh != nil {
+					notificationCh <- o.notificationBuilder().Finished("S3 file upload has finished", pf)
+				}
+
+				outHolder.AppendToOut(pf)
+
+				return
+			}
+
+			fileUrl, fileUrlError := o.Params.compileFileUrl(pf.GeneratedFilename())
+			if fileUrlError != nil {
+				pf.SetFileProcessingError(
+					NewS3FileUrlCanNotBeRetrievedError(fileUrlError),
+				)
+
+				if errorCh != nil {
+					errorCh <- o.errorBuilder().ProcessableFileError(pf, fileUrlError)
+				}
+				if notificationCh != nil {
+					notificationCh <- o.notificationBuilder().Failed(
+						"can not retrieve S3 file URL", pf, fileUrlError)
+				}
+
+				outHolder.AppendToOut(pf)
+
+				return
+			}
+
+			pf.AddOperationMetadata(MetadataKeyS3UploadFileUrl, fileUrl)
+
+			outHolder.AppendToOut(pf)
+		}(pf)
+	}
+
+	wg.Wait()
+
+	return outHolder.Out, nil
 }
 
 // InitPutObjectAPI Init PutObjectAPI that we need to upload the files to S3.
@@ -165,4 +250,16 @@ func (o *S3UploadOperation) InitPutObjectAPI() error {
 	o.PutObjectAPI = s3.New(sess)
 
 	return nil
+}
+
+func (o *S3UploadOperation) notificationBuilder() *OperationNotificationBuilder {
+	return &OperationNotificationBuilder{
+		OperationName: o.Name,
+	}
+}
+
+func (o *S3UploadOperation) errorBuilder() *OperationErrorBuilder {
+	return &OperationErrorBuilder{
+		OperationName: o.Name,
+	}
 }

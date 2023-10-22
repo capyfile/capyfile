@@ -29,7 +29,7 @@ func TestFilesystemInputWriteOperation_HandleSingleFileWriteWithOriginalFilename
 			UseOriginalFilename: true,
 		},
 	}
-	out, err := operation.Handle(in)
+	out, err := operation.Handle(in, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +77,7 @@ func TestFilesystemInputWriteOperation_HandleSingleFileWriteWithGeneratedFilenam
 			UseOriginalFilename: false,
 		},
 	}
-	out, err := operation.Handle(in)
+	out, err := operation.Handle(in, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,7 +134,7 @@ func TestFilesystemInputWriteOperation_HandleMultipleFileWrite(t *testing.T) {
 			UseOriginalFilename: true,
 		},
 	}
-	out, err := operation.Handle(in)
+	out, err := operation.Handle(in, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

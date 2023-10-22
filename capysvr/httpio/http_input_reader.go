@@ -33,7 +33,7 @@ func ReadInput(r *http.Request) (in []files.ProcessableFile, err error) {
 			slog.String("filename", tempFile.Name()),
 		)
 
-		return append(in, *files.NewProcessableFile(tempFile)), nil
+		return append(in, files.NewProcessableFile(tempFile)), nil
 	}
 
 	common.Logger.Debug("reading multipart form data")
@@ -70,7 +70,7 @@ func ReadInput(r *http.Request) (in []files.ProcessableFile, err error) {
 				OriginalFilename: fileHeader.Filename,
 			}
 
-			in = append(in, *processableFile)
+			in = append(in, processableFile)
 		}
 	}
 

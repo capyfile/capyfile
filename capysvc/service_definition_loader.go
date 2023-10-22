@@ -2,7 +2,6 @@ package capysvc
 
 import (
 	"encoding/json"
-	"errors"
 	"io"
 	"net/http"
 	"os"
@@ -19,7 +18,18 @@ func FindService(name string) *Service {
 	return nil
 }
 
-func LoadServiceDefinition() error {
+func LoadServiceDefinition(serviceDefinitionFile string) error {
+	if serviceDefinitionFile != "" {
+		serviceDef, err := NewServiceDefinitionFromFile(serviceDefinitionFile)
+		if err != nil {
+			return err
+		}
+
+		serviceDefinition = serviceDef
+
+		return nil
+	}
+
 	sdUrl, sdUrlFound := os.LookupEnv("CAPYFILE_SERVICE_DEFINITION_URL")
 	if sdUrlFound {
 		serviceDef, err := NewServiceDefinitionFromUrl(sdUrl)
@@ -44,7 +54,14 @@ func LoadServiceDefinition() error {
 		return nil
 	}
 
-	return errors.New("service definition source is not provided")
+	serviceDef, err := NewServiceDefinitionFromFile("/etc/capyfile/service-definition.json")
+	if err != nil {
+		return err
+	}
+
+	serviceDefinition = serviceDef
+
+	return nil
 }
 
 func LoadTestServiceDefinition(testServiceDef *Service) {

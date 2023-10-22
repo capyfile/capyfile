@@ -27,20 +27,13 @@ type ProcessableFile struct {
 	OriginalProcessableFile *ProcessableFile
 }
 
-func NewProcessableFile(file afero.File) *ProcessableFile {
-	return &ProcessableFile{
+func NewProcessableFile(file afero.File) ProcessableFile {
+	return ProcessableFile{
 		NanoID: gonanoid.Must(),
 		File:   file,
-	}
-}
-
-func NewUnreadableProcessableFile(filepath string, readErr FileProcessingError) *ProcessableFile {
-	return &ProcessableFile{
-		NanoID: gonanoid.Must(),
 		Metadata: &ProcessableFileMetadata{
-			OriginalFilename: filepath,
+			OriginalFilename: file.Name(),
 		},
-		FileProcessingError: readErr,
 	}
 }
 

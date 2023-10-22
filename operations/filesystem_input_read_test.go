@@ -16,7 +16,7 @@ func TestFilesystemInputReadOperation_HandleSingleFileRead(t *testing.T) {
 			Target: "testdata/file_1kb.bin",
 		},
 	}
-	out, err := operation.Handle(in)
+	out, err := operation.Handle(in, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +43,7 @@ func TestFilesystemInputReadOperation_HandleFileReadWithGlobPattern(t *testing.T
 			Target: "testdata/*.bin",
 		},
 	}
-	out, err := operation.Handle(in)
+	out, err := operation.Handle(in, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

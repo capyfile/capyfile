@@ -16,6 +16,8 @@ const ErrorCodeS3UploadV2OperationConfiguration = "S3_UPLOAD_OPERATION_CONFIGURA
 
 const MetadataKeyS3UploadV2FileUrl = "s3_upload.file_url"
 
+// WIP: operation that uses the new AWS SDK v2
+
 // PutObjectV2API The interface to implement PutObject that we need to upload the files to S3.
 type PutObjectV2API interface {
 	PutObject(

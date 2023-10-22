@@ -8,8 +8,20 @@ import (
 
 var Logger *slog.Logger
 
-func InitLogger() error {
+func InitDefaultServerLogger() error {
 	Logger = slog.New(slog.NewJSONHandler(os.Stdout))
+	return nil
+}
+
+func InitDefaultCliLogger() error {
+	//logFile, err := os.OpenFile("/var/log/capyfile.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	logFile, err := os.OpenFile("/tmp/capyfile.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if err != nil {
+		return err
+	}
+
+	Logger = slog.New(slog.NewTextHandler(logFile))
+
 	return nil
 }
 
