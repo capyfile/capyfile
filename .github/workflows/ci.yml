@@ -24,7 +24,7 @@ jobs:
         env:
           DEBIAN_FRONTEND: noninteractive
         run:
-          sudo apt-get install --fix-missing -qq libvips=8.12.1
+          sudo apt-get install --fix-missing -qq libvips
 
       - name: Set up exiftool dependency
         env:
