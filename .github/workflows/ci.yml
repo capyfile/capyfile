@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    #branches: [ "master" ]
+    branches: [ "test_workflow_setup" ]
+  pull_request:
+    #branches: [ "master" ]
+    branches: [ "test_workflow_setup" ]
+
+jobs:
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.19'
+
+      - name: Set up vips dependency
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run:
+          sudo apt-get install --fix-missing -qq libvips=8.12.1
+
+      - name: Set up exiftool dependency
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run:
+          sudo apt-get install --fix-missing -qq exiftool
+
+      - name: Test
+        run: go test -v ./...
