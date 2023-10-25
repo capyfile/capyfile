@@ -2,9 +2,8 @@ package operations
 
 import (
 	"capyfile/files"
-	"os"
+	"capyfile/operations/filetime"
 	"sync"
-	"syscall"
 	"time"
 )
 
@@ -12,7 +11,7 @@ type FileTimeValidateOperation struct {
 	Name   string
 	Params *FileTimeValidateOperationParams
 
-	TimeStatProvider TimeStatProvider
+	TimeStatProvider filetime.TimeStatProvider
 }
 
 type FileTimeValidateOperationParams struct {
@@ -222,26 +221,4 @@ func (o *FileTimeValidateOperation) errorBuilder() *OperationErrorBuilder {
 	return &OperationErrorBuilder{
 		OperationName: o.Name,
 	}
-}
-
-type TimeStatProvider interface {
-	TimeStat(os.FileInfo) (*TimeStat, error)
-}
-
-type LinuxTimeStatProvider struct{}
-
-func (p *LinuxTimeStatProvider) TimeStat(fi os.FileInfo) (*TimeStat, error) {
-	s := fi.Sys().(*syscall.Stat_t)
-
-	return &TimeStat{
-		Atime: time.Unix(s.Atim.Sec, s.Atim.Nsec),
-		Mtime: time.Unix(s.Mtim.Sec, s.Mtim.Nsec),
-		Ctime: time.Unix(s.Ctim.Sec, s.Ctim.Nsec),
-	}, nil
-}
-
-type TimeStat struct {
-	Atime time.Time
-	Mtime time.Time
-	Ctime time.Time
 }

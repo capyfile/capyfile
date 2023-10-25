@@ -3,6 +3,7 @@ package operations
 import (
 	"capyfile/capyfs"
 	"capyfile/files"
+	"capyfile/operations/filetime"
 	"os"
 	"testing"
 	"time"
@@ -14,8 +15,8 @@ type testTimeStatProvider struct {
 	ctime time.Time
 }
 
-func (t *testTimeStatProvider) TimeStat(fi os.FileInfo) (*TimeStat, error) {
-	return &TimeStat{
+func (t *testTimeStatProvider) TimeStat(fi os.FileInfo) (*filetime.TimeStat, error) {
+	return &filetime.TimeStat{
 		Atime: t.atime,
 		Mtime: t.mtime,
 		Ctime: t.ctime,
@@ -39,7 +40,7 @@ func TestFileTimeValidateOperation_Handle(t *testing.T) {
 		{
 			name: "should return file processing error when file atime is too old",
 			operation: &FileTimeValidateOperation{
-				Name: "file_time_validate",
+				Name: "filetime",
 				Params: &FileTimeValidateOperationParams{
 					MinAtime: time.Now().Add(-time.Hour * 24 * 3),
 					MaxAtime: time.Now().Add(-time.Hour * 24 * 1),
@@ -72,7 +73,7 @@ func TestFileTimeValidateOperation_Handle(t *testing.T) {
 		{
 			name: "should return file processing error when file atime is too new",
 			operation: &FileTimeValidateOperation{
-				Name: "file_time_validate",
+				Name: "filetime",
 				Params: &FileTimeValidateOperationParams{
 					MinAtime: time.Now().Add(-time.Hour * 24 * 3),
 					MaxAtime: time.Now().Add(-time.Hour * 24 * 1),
@@ -105,7 +106,7 @@ func TestFileTimeValidateOperation_Handle(t *testing.T) {
 		{
 			name: "should return file processing error when file mtime is too old",
 			operation: &FileTimeValidateOperation{
-				Name: "file_time_validate",
+				Name: "filetime",
 				Params: &FileTimeValidateOperationParams{
 					MinMtime: time.Now().Add(-time.Hour * 24 * 3),
 					MaxMtime: time.Now().Add(-time.Hour * 24 * 1),
@@ -138,7 +139,7 @@ func TestFileTimeValidateOperation_Handle(t *testing.T) {
 		{
 			name: "should return file processing error when file mtime is too new",
 			operation: &FileTimeValidateOperation{
-				Name: "file_time_validate",
+				Name: "filetime",
 				Params: &FileTimeValidateOperationParams{
 					MinMtime: time.Now().Add(-time.Hour * 24 * 3),
 					MaxMtime: time.Now().Add(-time.Hour * 24 * 1),
@@ -171,7 +172,7 @@ func TestFileTimeValidateOperation_Handle(t *testing.T) {
 		{
 			name: "should return file processing error when file ctime is too old",
 			operation: &FileTimeValidateOperation{
-				Name: "file_time_validate",
+				Name: "filetime",
 				Params: &FileTimeValidateOperationParams{
 					MinCtime: time.Now().Add(-time.Hour * 24 * 3),
 					MaxCtime: time.Now().Add(-time.Hour * 24 * 1),
@@ -204,7 +205,7 @@ func TestFileTimeValidateOperation_Handle(t *testing.T) {
 		{
 			name: "should return file processing error when file ctime is too new",
 			operation: &FileTimeValidateOperation{
-				Name: "file_time_validate",
+				Name: "filetime",
 				Params: &FileTimeValidateOperationParams{
 					MinCtime: time.Now().Add(-time.Hour * 24 * 3),
 					MaxCtime: time.Now().Add(-time.Hour * 24 * 1),
@@ -237,7 +238,7 @@ func TestFileTimeValidateOperation_Handle(t *testing.T) {
 		{
 			name: "should not return file processing error when file time stat is valid",
 			operation: &FileTimeValidateOperation{
-				Name: "file_time_validate",
+				Name: "filetime",
 				Params: &FileTimeValidateOperationParams{
 					MinAtime: time.Now().Add(-time.Hour * 24 * 3),
 					MaxAtime: time.Now().Add(-time.Hour * 24 * 1),
