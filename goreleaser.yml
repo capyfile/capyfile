@@ -1,7 +1,8 @@
 project_name: capyfile
 
 builds:
-  - binary: capysvr
+  - id: capysvr
+    binary: capysvr
     main: ./capysvr
     goos:
       - linux
@@ -9,7 +10,8 @@ builds:
     goarch:
       - amd64
 
-  - binary: capycmd
+  - id: capycmd
+    binary: capycmd
     main: ./capycmd
     goos:
       - linux
