@@ -24,10 +24,10 @@ archives:
 
 source:
   enabled: true
-  name_template: '{{ .Binary }}-{{ .Version }}-source'
+  name_template: '{{ .Version }}-source'
 
 checksum:
-  name_template: '{{ .Binary }}-{{ .Version }}-checksums.sha256'
+  name_template: '{{ .Version }}-checksums.sha256'
 
 dockers:
   - dockerfile: './docker/{{ .Binary }}.goreleaser.Dockerfile'
