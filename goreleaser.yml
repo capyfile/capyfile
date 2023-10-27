@@ -1,0 +1,40 @@
+project_name: capyfile
+
+builds:
+  - binary: capysvr
+    main: ./capysvr
+    goos:
+      - linux
+      #- darwin
+    goarch:
+      - amd64
+
+  - binary: capycmd
+    main: ./capycmd
+    goos:
+      - linux
+      #- darwin
+    goarch:
+      - amd64
+
+archives:
+  - name_template: '{{ .Binary }}-{{ .Version }}-{{ .Os }}-{{ .Arch }}'
+
+source:
+  enabled: true
+  name_template: '{{ .Binary }}-{{ .Version }}-source'
+
+checksum:
+  name_template: '{{ .Binary }}-{{ .Version }}-checksums.sha256'
+
+dockers:
+  - dockerfile: './docker/{{ .Binary }}.goreleaser.Dockerfile'
+    image_templates:
+      - 'capyfile/{{ .Binary }}:latest'
+      - 'capyfile/{{ .Binary }}:{{ .Major }}-latest'
+      - 'capyfile/{{ .Binary }}:{{ .Version }}'
+
+release:
+  github:
+    owner: capyfile
+    name: capyfile

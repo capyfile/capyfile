@@ -1,25 +1,3 @@
-# Step 1: Build
-FROM golang:1.19-alpine AS build
-
-ENV OUT_D /out
-
-RUN mkdir -p /out
-RUN apk add --update  --no-cache \
-    bash \
-    coreutils \
-    ca-certificates \
-    git \
-    gcc g++ \
-    pkgconfig \
-    vips-dev
-
-RUN mkdir -p /go/src/github.com/capyfile/capyfile
-ADD . /go/src/github.com/capyfile/capyfile/
-
-RUN cd /go/src/github.com/capyfile/capyfile/capycmd && \
-    go build -o $OUT_D
-
-# Step 2: App
 FROM alpine:3.12
 
 ARG VIPS_VERSION=8.12.2
@@ -50,11 +28,6 @@ RUN set -x -o pipefail \
     && rm -rf /var/cache/apk/*
 
 WORKDIR /app
-COPY --from=build /out/capycmd /app/capycmd
-
-RUN adduser -D user
-USER user:user
-
-EXPOSE 8024
+COPY capycmd .
 
 ENTRYPOINT ["/app/capycmd"]
