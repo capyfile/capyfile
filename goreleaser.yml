@@ -30,11 +30,16 @@ checksum:
   name_template: '{{ .Version }}-checksums.sha256'
 
 dockers:
-  - dockerfile: './docker/{{ .Binary }}.goreleaser.Dockerfile'
+  - dockerfile: './docker/capysvr.goreleaser.Dockerfile'
     image_templates:
-      - 'capyfile/{{ .Binary }}:latest'
-      - 'capyfile/{{ .Binary }}:{{ .Major }}-latest'
-      - 'capyfile/{{ .Binary }}:{{ .Version }}'
+      - 'capyfile/capysvr:latest'
+      - 'capyfile/capysvr:{{ .Major }}-latest'
+      - 'capyfile/capysvr:{{ .Version }}'
+  - dockerfile: './docker/capycmd.goreleaser.Dockerfile'
+    image_templates:
+      - 'capyfile/capycmd:latest'
+      - 'capyfile/capycmd:{{ .Major }}-latest'
+      - 'capyfile/capycmd:{{ .Version }}'
 
 release:
   github:
