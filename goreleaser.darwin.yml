@@ -5,7 +5,6 @@ builds:
     binary: capysvr
     main: ./capysvr
     goos:
-      - linux
       - darwin
     goarch:
       - amd64
@@ -14,7 +13,6 @@ builds:
     binary: capycmd
     main: ./capycmd
     goos:
-      - linux
       - darwin
     goarch:
       - amd64
@@ -36,19 +34,8 @@ source:
 checksum:
   name_template: '{{ .Version }}-checksums.sha256'
 
-dockers:
-  - dockerfile: './docker/capysvr.goreleaser.Dockerfile'
-    image_templates:
-      - 'capyfile/capysvr:latest'
-      - 'capyfile/capysvr:{{ .Major }}-latest'
-      - 'capyfile/capysvr:{{ .Version }}'
-  - dockerfile: './docker/capycmd.goreleaser.Dockerfile'
-    image_templates:
-      - 'capyfile/capycmd:latest'
-      - 'capyfile/capycmd:{{ .Major }}-latest'
-      - 'capyfile/capycmd:{{ .Version }}'
-
 release:
+  name_template: 'Capyfile {{ .Tag }} for MacOS'
   github:
     owner: capyfile
     name: capyfile
