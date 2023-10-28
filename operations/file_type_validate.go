@@ -55,7 +55,7 @@ func (o *FileTypeValidateOperation) Handle(
 					}
 					if notificationCh != nil {
 						notificationCh <- o.notificationBuilder().Failed(
-							"file type validation failed with error", pf, mimeErr)
+							"can not determine file MIME type", pf, mimeErr)
 					}
 
 					outHolder.AppendToOut(pf)
@@ -76,7 +76,7 @@ func (o *FileTypeValidateOperation) Handle(
 
 					if notificationCh != nil {
 						notificationCh <- o.notificationBuilder().Finished(
-							"file type validation finished with file processing error", pf)
+							"file MIME type is not allowed", pf)
 					}
 
 					outHolder.AppendToOut(pf)
@@ -86,7 +86,7 @@ func (o *FileTypeValidateOperation) Handle(
 			}
 
 			if notificationCh != nil {
-				notificationCh <- o.notificationBuilder().Finished("file type validation finished", pf)
+				notificationCh <- o.notificationBuilder().Finished("file MIME type is valid", pf)
 			}
 
 			outHolder.AppendToOut(pf)

@@ -58,7 +58,7 @@ func (o *FileSizeValidateOperation) Handle(
 				}
 				if notificationCh != nil {
 					notificationCh <- o.notificationBuilder().Failed(
-						"file size validation failed with error", pf, statErr)
+						"file info can not be retrieved", pf, statErr)
 				}
 
 				outHolder.AppendToOut(pf)
@@ -74,7 +74,7 @@ func (o *FileSizeValidateOperation) Handle(
 
 					if notificationCh != nil {
 						notificationCh <- o.notificationBuilder().Finished(
-							"file size validation finished with file processing error", pf)
+							"file size is too small", pf)
 					}
 
 					outHolder.AppendToOut(pf)
@@ -91,7 +91,7 @@ func (o *FileSizeValidateOperation) Handle(
 
 					if notificationCh != nil {
 						notificationCh <- o.notificationBuilder().Finished(
-							"file size validation finished with file processing error", pf)
+							"file size is too big", pf)
 					}
 
 					outHolder.AppendToOut(pf)
@@ -101,7 +101,7 @@ func (o *FileSizeValidateOperation) Handle(
 			}
 
 			if notificationCh != nil {
-				notificationCh <- o.notificationBuilder().Finished("file size validation finished", pf)
+				notificationCh <- o.notificationBuilder().Finished("file size is valid", pf)
 			}
 
 			outHolder.AppendToOut(pf)
