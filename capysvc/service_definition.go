@@ -435,7 +435,7 @@ func (o *Operation) initOperationHandler(
 	case "file_type_validate":
 		oh, ohErr = o.newFileTypeValidateOperation(parameterLoaderProvider)
 		break
-	case "filetime":
+	case "file_time_validate":
 		oh, ohErr = o.newFileTimeValidateOperation(parameterLoaderProvider)
 		break
 	case "exiftool_metadata_cleanup":

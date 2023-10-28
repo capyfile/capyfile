@@ -218,6 +218,10 @@ func (o *S3UploadOperation) Handle(
 
 			pf.AddOperationMetadata(MetadataKeyS3UploadFileUrl, fileUrl)
 
+			if notificationCh != nil {
+				notificationCh <- o.notificationBuilder().Finished("S3 file upload has finished", pf)
+			}
+
 			outHolder.AppendToOut(pf)
 		}(pf)
 	}
