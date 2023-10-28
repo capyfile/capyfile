@@ -20,7 +20,14 @@ builds:
       - amd64
 
 archives:
-  - name_template: '{{ .Binary }}-{{ .Version }}-{{ .Os }}-{{ .Arch }}'
+  - id: capysvr
+    builds:
+      - capysvr
+    name_template: 'capysvr-{{ .Version }}-{{ .Os }}-{{ .Arch }}'
+  - id: capycmd
+    builds:
+      - capycmd
+    name_template: 'capycmd-{{ .Version }}-{{ .Os }}-{{ .Arch }}'
 
 source:
   enabled: true
