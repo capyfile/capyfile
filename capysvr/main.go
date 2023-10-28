@@ -1,5 +1,11 @@
 package main
 
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+)
+
 func main() {
 	server := &Server{
 		Addr: ":8024",

@@ -6,11 +6,20 @@ import (
 	"os"
 )
 
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+)
+
 func main() {
-	serviceProcessor := os.Args[1]
+	var serviceProcessor string
+	if len(os.Args) > 1 {
+		serviceProcessor = os.Args[1]
+	}
 
 	if serviceProcessor == "" {
-		fmt.Println(`capycmd - commandline interface for Capyfile [version 1.0-beta]
+		fmt.Println(`capycmd - commandline interface for Capyfile
 
 Capyfile is a highly customizable file processing service that allows you to
 define and run your own file processing pipelines.
@@ -24,7 +33,11 @@ Examples:
     $ capycmd logs:archive --service-definition=/etc/capyfile/logs.service-definition.json
     $ CAPYFILE_SERVICE_DEFINITION_FILE=/etc/capyfile/images.service-definition.json capycmd images:clear_metadata
     $ CAPYFILE_SERVICE_DEFINITION_URL=https://example.com/photos.service-definition.json capycmd photos:upload
-    	`)
+
+Version: ` + version + `
+Commit: ` + commit + `
+Date: ` + date + `
+		`)
 
 		return
 	}

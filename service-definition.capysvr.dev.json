@@ -24,7 +24,7 @@
           }
         },
         {
-          "name": "metadata_cleanup"
+          "name": "exiftool_metadata_cleanup"
         },
         {
           "name": "image_convert",

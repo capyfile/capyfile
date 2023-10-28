@@ -25,13 +25,14 @@ services:
       - .:/go/src/github.com/capyfile/capyfile
     environment:
       VIRTUAL_HOST: 'capyfile.local'
-      CAPYFILE_SERVICE_DEFINITION_FILE: '/go/src/github.com/capyfile/capyfile/service-definition.dev.json'
+      CAPYFILE_SERVICE_DEFINITION_FILE: '/go/src/github.com/capyfile/capyfile/service-definition.capysvr.dev.json'
       MINIO_ACCESS_KEY_ID: minio_user_dev
       MINIO_SECRET_ACCESS_KEY: minio_password_dev
       MINIO_ENDPOINT: http://minio.local:9001/{bucket}
       MINIO_REGION: us-west-1
       MINIO_AVATARS_BUCKET: avatars
       MINIO_ATTACHMENTS_BUCKET: attachments
+      MINIO_PHOTOS_BUCKET: photos
     ports:
       - '8024:8024'
     depends_on:
@@ -42,6 +43,33 @@ services:
         aliases:
           - capyfile.local
 
+  # Capyfile command line build environment.
+  capycmd:
+    build:
+      context: .
+      dockerfile: docker/dev/capycmd.Dockerfile
+    image: capyfile/capycmd:dev
+    volumes:
+      - .:/go/src/github.com/capyfile/capyfile
+    environment:
+      CAPYFILE_SERVICE_DEFINITION_FILE: '/go/src/github.com/capyfile/capyfile/service-definition.capycmd.dev.json'
+      # Copy your files to this directory to read them from the capycmd. Or if necessary, replace
+      # the following line with the path that you want to read the files from for the development
+      # purposes.
+      CAPYCMD_DEV_INPUT_READ_TARGET: '/go/src/github.com/capyfile/capyfile/env/dev/files/*'
+      MINIO_ACCESS_KEY_ID: minio_user_dev
+      MINIO_SECRET_ACCESS_KEY: minio_password_dev
+      MINIO_ENDPOINT: http://minio.local:9001/{bucket}
+      MINIO_REGION: us-west-1
+      MINIO_AVATARS_BUCKET: avatars
+      MINIO_ATTACHMENTS_BUCKET: attachments
+      MINIO_PHOTOS_BUCKET: photos
+    depends_on:
+      - minio
+    command: /app/capycmd
+    networks:
+      - capyfile-network-dev
+
   # S3 storage you can use for the development purposes.
   #
   # You can access the minio server at http://localhost:9001 or at http://minio.local:9001 (from
@@ -51,7 +79,7 @@ services:
   minio:
     image: minio/minio
     environment:
-      VIRTUAL_HOST: 'avatars.minio.local,attachments.minio.local,minio.local'
+      VIRTUAL_HOST: 'avatars.minio.local,attachments.minio.local,photos.minio.local,minio.local'
       MINIO_ROOT_USER: minio_user_dev
       MINIO_ROOT_PASSWORD: minio_password_dev
     command: minio server --address :9001 --console-address :9002 /home/shared
@@ -64,8 +92,9 @@ services:
           - minio.local
           - avatars.minio.local
           - attachments.minio.local
+          - photos.minio.local
 
-  # Creates the buckets you need to run the server/cli with the `service-definition.dev.json`
+  # Creates the buckets you need to run the server/cli with the `service-definition.*.dev.json`
   minio-buckets:
     image: minio/mc
     depends_on:
@@ -79,6 +108,9 @@ services:
       /usr/bin/mc rm -r --force minio_dev/attachments;
       /usr/bin/mc mb minio_dev/attachments;
       /usr/bin/mc policy download minio_dev/attachments;
+      /usr/bin/mc rm -r --force minio_dev/photos;
+      /usr/bin/mc mb minio_dev/photos;
+      /usr/bin/mc policy download minio_dev/photos;
       exit 0;
       "
     networks:

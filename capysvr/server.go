@@ -88,6 +88,9 @@ func (s *Server) Run() error {
 		common.Logger.Info(
 			"server is listening",
 			slog.String("addr", s.Addr),
+			slog.String("version", version),
+			slog.String("commit", commit),
+			slog.String("date", date),
 		)
 
 		var err error
