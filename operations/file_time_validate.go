@@ -36,6 +36,13 @@ func (o *FileTimeValidateOperation) Handle(
 	errorCh chan<- OperationError,
 	notificationCh chan<- OperationNotification,
 ) (out []files.ProcessableFile, err error) {
+	if o.TimeStatProvider == nil {
+		initErr := o.initTimeStatProvider()
+		if initErr != nil {
+			return nil, initErr
+		}
+	}
+
 	var wg sync.WaitGroup
 
 	outHolder := newOutputHolder()
@@ -209,6 +216,12 @@ func (o *FileTimeValidateOperation) Handle(
 	wg.Wait()
 
 	return outHolder.Out, nil
+}
+
+func (o *FileTimeValidateOperation) initTimeStatProvider() error {
+	o.TimeStatProvider = &filetime.PlatformTimeStatProvider{}
+
+	return nil
 }
 
 func (o *FileTimeValidateOperation) notificationBuilder() *OperationNotificationBuilder {

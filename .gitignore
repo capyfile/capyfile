@@ -2,3 +2,4 @@
 
 service-definition.local.json
 up.local.sh
+stop.local.sh

@@ -6,6 +6,7 @@ import (
 	"capyfile/capysvc/service"
 	"capyfile/files"
 	"capyfile/operations"
+	"golang.org/x/exp/slices"
 	"net/http"
 	"testing"
 )
@@ -138,12 +139,18 @@ func TestService_RunProcessors(t *testing.T) {
 		t.Fatalf("len(out) = %d, want 2", len(out))
 	}
 
-	imageProcessableFile := out[0]
+	imageProcessableFileIdx := slices.IndexFunc(out, func(pf files.ProcessableFile) bool {
+		return pf.File.Name() == imageFile.Name()
+	})
+	imageProcessableFile := out[imageProcessableFileIdx]
 	if imageProcessableFile.HasFileProcessingError() {
 		t.Fatalf("expect no error for image processable file, got %v", imageProcessableFile.FileProcessingError)
 	}
 
-	binProcessableFile := out[1]
+	binProcessableFileIdx := slices.IndexFunc(out, func(pf files.ProcessableFile) bool {
+		return pf.File.Name() == binFile.Name()
+	})
+	binProcessableFile := out[binProcessableFileIdx]
 	if !binProcessableFile.HasFileProcessingError() {
 		t.Fatalf("expect an error for bin processable file, got nil")
 	}
@@ -200,12 +207,18 @@ func TestService_RunProcessorsConcurrentlyWithServerContext(t *testing.T) {
 		t.Fatalf("len(out) = %d, want 2", len(out))
 	}
 
-	imageProcessableFile := out[0]
+	imageProcessableFileIdx := slices.IndexFunc(out, func(pf files.ProcessableFile) bool {
+		return pf.File.Name() == imageFile.Name()
+	})
+	imageProcessableFile := out[imageProcessableFileIdx]
 	if imageProcessableFile.HasFileProcessingError() {
 		t.Fatalf("expect no error for image processable file, got %v", imageProcessableFile.FileProcessingError)
 	}
 
-	binProcessableFile := out[1]
+	binProcessableFileIdx := slices.IndexFunc(out, func(pf files.ProcessableFile) bool {
+		return pf.File.Name() == binFile.Name()
+	})
+	binProcessableFile := out[binProcessableFileIdx]
 	if !binProcessableFile.HasFileProcessingError() {
 		t.Fatalf("expect an error for bin processable file, got nil")
 	}
@@ -264,12 +277,18 @@ func TestService_RunProcessorsConcurrentlyWithCliContext(t *testing.T) {
 		t.Fatalf("len(out) = %d, want 2", len(out))
 	}
 
-	imageProcessableFile := out[0]
+	imageProcessableFileIdx := slices.IndexFunc(out, func(pf files.ProcessableFile) bool {
+		return pf.File.Name() == imageFile.Name()
+	})
+	imageProcessableFile := out[imageProcessableFileIdx]
 	if imageProcessableFile.HasFileProcessingError() {
 		t.Fatalf("expect no error for image processable file, got %v", imageProcessableFile.FileProcessingError)
 	}
 
-	binProcessableFile := out[1]
+	binProcessableFileIdx := slices.IndexFunc(out, func(pf files.ProcessableFile) bool {
+		return pf.File.Name() == binFile.Name()
+	})
+	binProcessableFile := out[binProcessableFileIdx]
 	if !binProcessableFile.HasFileProcessingError() {
 		t.Fatalf("expect an error for bin processable file, got nil")
 	}

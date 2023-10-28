@@ -7,18 +7,6 @@ import (
 )
 
 func main() {
-	var serviceDefinitionFile string
-	flag.StringVar(&serviceDefinitionFile, "service-definition", "", "Service definition file")
-
-	cli := &Cli{
-		ServiceDefinitionFile: serviceDefinitionFile,
-	}
-
-	initErr := cli.Init()
-	if initErr != nil {
-		panic(initErr)
-	}
-
 	serviceProcessor := os.Args[1]
 
 	if serviceProcessor == "" {
@@ -39,6 +27,18 @@ Examples:
     	`)
 
 		return
+	}
+
+	var serviceDefinitionFile string
+	flag.StringVar(&serviceDefinitionFile, "service-definition", "", "Service definition file")
+
+	cli := &Cli{
+		ServiceDefinitionFile: serviceDefinitionFile,
+	}
+
+	initErr := cli.Init()
+	if initErr != nil {
+		panic(initErr)
 	}
 
 	runErr := cli.Run(serviceProcessor)
