@@ -29,13 +29,12 @@ archives:
 
 source:
   enabled: true
-  name_template: '{{ .Version }}-source'
+  name_template: '{{ .Version }}-darwin-source'
 
 checksum:
-  name_template: '{{ .Version }}-checksums.sha256'
+  name_template: '{{ .Version }}-darwin-checksums.sha256'
 
 release:
-  name_template: 'Capyfile {{ .Tag }} for MacOS'
   github:
     owner: capyfile
     name: capyfile
