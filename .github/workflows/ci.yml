@@ -2,11 +2,9 @@ name: CI
 
 on:
   push:
-    #branches: [ "master" ]
-    branches: [ "test_workflow_setup" ]
+    branches: [ 'master' ]
   pull_request:
-    #branches: [ "master" ]
-    branches: [ "test_workflow_setup" ]
+    branches: [ 'master' ]
 
 jobs:
 
