@@ -6,7 +6,6 @@ builds:
     main: ./capysvr
     goos:
       - linux
-      #- darwin
     goarch:
       - amd64
 
@@ -15,7 +14,6 @@ builds:
     main: ./capycmd
     goos:
       - linux
-      #- darwin
     goarch:
       - amd64
 
@@ -31,10 +29,10 @@ archives:
 
 source:
   enabled: true
-  name_template: '{{ .Version }}-source'
+  name_template: '{{ .Version }}-linux-source'
 
 checksum:
-  name_template: '{{ .Version }}-checksums.sha256'
+  name_template: '{{ .Version }}-linux-checksums.sha256'
 
 dockers:
   - dockerfile: './docker/capysvr.goreleaser.Dockerfile'

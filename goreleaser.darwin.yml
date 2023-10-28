@@ -1,0 +1,40 @@
+project_name: capyfile
+
+builds:
+  - id: capysvr
+    binary: capysvr
+    main: ./capysvr
+    goos:
+      - darwin
+    goarch:
+      - amd64
+
+  - id: capycmd
+    binary: capycmd
+    main: ./capycmd
+    goos:
+      - darwin
+    goarch:
+      - amd64
+
+archives:
+  - id: capysvr
+    builds:
+      - capysvr
+    name_template: 'capysvr-{{ .Version }}-{{ .Os }}-{{ .Arch }}'
+  - id: capycmd
+    builds:
+      - capycmd
+    name_template: 'capycmd-{{ .Version }}-{{ .Os }}-{{ .Arch }}'
+
+source:
+  enabled: true
+  name_template: '{{ .Version }}-darwin-source'
+
+checksum:
+  name_template: '{{ .Version }}-darwin-checksums.sha256'
+
+release:
+  github:
+    owner: capyfile
+    name: capyfile

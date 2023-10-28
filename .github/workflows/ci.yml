@@ -9,7 +9,10 @@ on:
 jobs:
 
   test:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v3
 
@@ -18,17 +21,29 @@ jobs:
         with:
           go-version: '1.19'
 
-      - name: Set up vips dependency
+      - name: Set up vips dependency (Ubuntu)
         env:
           DEBIAN_FRONTEND: noninteractive
         run:
           sudo apt-get install --fix-missing -qq libvips-dev
+        if: matrix.os == 'ubuntu-latest'
 
-      - name: Set up exiftool dependency
+      - name: Set up vips dependency (MacOS)
+        run:
+          brew install vips
+        if: matrix.os == 'macos-latest'
+
+      - name: Set up exiftool dependency (Ubuntu)
         env:
           DEBIAN_FRONTEND: noninteractive
         run:
           sudo apt-get install --fix-missing -qq exiftool
+        if: matrix.os == 'ubuntu-latest'
+
+      - name: Set up exiftool dependency (MacOS)
+        run:
+          brew install exiftool
+        if: matrix.os == 'macos-latest'
 
       - name: Test
         run: go test -v ./...
