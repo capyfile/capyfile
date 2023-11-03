@@ -2,8 +2,6 @@ package capysvc
 
 import (
 	"capyfile/capyerr"
-	"capyfile/capysvc/processor"
-	"capyfile/capysvc/service"
 	"capyfile/files"
 	"capyfile/operations"
 	"capyfile/operations/filetime"
@@ -31,7 +29,7 @@ func (s *Service) FindProcessor(processorName string) *Processor {
 }
 
 func (s *Service) RunProcessor(
-	serviceContext service.Context,
+	context Context,
 	processorName string,
 	in []files.ProcessableFile,
 ) (out []files.ProcessableFile, err error) {
@@ -40,11 +38,11 @@ func (s *Service) RunProcessor(
 		return out, capyerr.NewProcessorNotFoundError(processorName)
 	}
 
-	return proc.RunOperations(serviceContext.ProcessorContext(), in)
+	return proc.RunOperations(context, in)
 }
 
 func (s *Service) RunProcessorConcurrently(
-	serviceContext service.Context,
+	ctx Context,
 	processorName string,
 	in []files.ProcessableFile,
 	errorCh chan<- operations.OperationError,
@@ -56,7 +54,7 @@ func (s *Service) RunProcessorConcurrently(
 	}
 
 	return proc.RunOperationsConcurrently(
-		serviceContext.ProcessorContext(),
+		ctx,
 		in,
 		errorCh,
 		notificationCh,
@@ -69,15 +67,10 @@ type Processor struct {
 }
 
 func (p *Processor) RunOperations(
-	processorContext processor.Context,
+	ctx Context,
 	in []files.ProcessableFile,
 ) (out []files.ProcessableFile, err error) {
-	parameterLoaderProvider, providerErr := processorContext.ParameterLoaderProvider()
-	if providerErr != nil {
-		return out, providerErr
-	}
-
-	iniOpsErr := p.initOperations(parameterLoaderProvider)
+	iniOpsErr := p.initOperations(ctx)
 	if iniOpsErr != nil {
 		return out, iniOpsErr
 	}
@@ -103,17 +96,12 @@ func (p *Processor) RunOperations(
 }
 
 func (p *Processor) RunOperationsConcurrently(
-	processorContext processor.Context,
+	ctx Context,
 	in []files.ProcessableFile,
 	errorCh chan<- operations.OperationError,
 	notificationCh chan<- operations.OperationNotification,
 ) (out []files.ProcessableFile, err error) {
-	parameterLoaderProvider, providerErr := processorContext.ParameterLoaderProvider()
-	if providerErr != nil {
-		return out, providerErr
-	}
-
-	iniOpsErr := p.initOperations(parameterLoaderProvider)
+	iniOpsErr := p.initOperations(ctx)
 	if iniOpsErr != nil {
 		return out, iniOpsErr
 	}
@@ -170,7 +158,7 @@ func (p *Processor) RunOperationsConcurrently(
 // What this method does is:
 //   - initializes the operation handlers
 //   - builds the linked list of operations
-func (p *Processor) initOperations(parameterLoaderProvider parameters.ParameterLoaderProvider) error {
+func (p *Processor) initOperations(ctx Context) error {
 	var prevOp *Operation
 	for i := range p.Operations {
 		op := &p.Operations[i]
@@ -186,7 +174,7 @@ func (p *Processor) initOperations(parameterLoaderProvider parameters.ParameterL
 		op.inCntLock = &sync.Mutex{}
 		op.completedLock = &sync.Mutex{}
 
-		opHandlerErr := op.initOperationHandler(parameterLoaderProvider)
+		opHandlerErr := op.initOperationHandler(ctx)
 		if opHandlerErr != nil {
 			return opHandlerErr
 		}
@@ -410,12 +398,15 @@ func (o *Operation) decrInCount(i int) {
 	o.InCnt -= i
 }
 
-func (o *Operation) initOperationHandler(
-	parameterLoaderProvider parameters.ParameterLoaderProvider,
-) error {
+func (o *Operation) initOperationHandler(ctx Context) error {
 	// If the handler is already created, return it.
 	if o.handler != nil {
 		return nil
+	}
+
+	parameterLoaderProvider, providerErr := ctx.ParameterLoaderProvider()
+	if providerErr != nil {
+		return providerErr
 	}
 
 	o.handlerLock.Lock()

@@ -4,7 +4,6 @@ import (
 	"capyfile/capyfs"
 	"capyfile/capysvc"
 	"capyfile/capysvc/common"
-	"capyfile/capysvc/service"
 	"capyfile/files"
 	"capyfile/operations"
 	"fmt"
@@ -107,7 +106,7 @@ func (s *Cli) Run(serviceProcessor string) error {
 	fmt.Println()
 
 	out, procErr := svc.RunProcessorConcurrently(
-		&service.CliContext{},
+		capysvc.NewCliContext(),
 		proc.Name,
 		[]files.ProcessableFile{},
 		errorCh,

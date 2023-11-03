@@ -3,7 +3,6 @@ package capysvc
 import (
 	"bytes"
 	"capyfile/capyfs"
-	"capyfile/capysvc/service"
 	"capyfile/files"
 	"capyfile/operations"
 	"golang.org/x/exp/slices"
@@ -127,7 +126,7 @@ func TestService_RunProcessors(t *testing.T) {
 	sd := testServiceDefinitionForServerContext()
 
 	out, err := sd.RunProcessor(
-		&service.ServerContext{Req: req},
+		NewServerContext(req, nil),
 		"photo",
 		in)
 
@@ -192,7 +191,7 @@ func TestService_RunProcessorsConcurrentlyWithServerContext(t *testing.T) {
 	sd := testServiceDefinitionForServerContext()
 
 	out, err := sd.RunProcessorConcurrently(
-		&service.ServerContext{Req: req},
+		NewServerContext(req, nil),
 		"photo",
 		in,
 		nil,
@@ -262,7 +261,7 @@ func TestService_RunProcessorsConcurrentlyWithCliContext(t *testing.T) {
 	sd := testServiceDefinitionForCliContext()
 
 	out, err := sd.RunProcessorConcurrently(
-		&service.CliContext{},
+		NewCliContext(),
 		"photo",
 		in,
 		errorCh,

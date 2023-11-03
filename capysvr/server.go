@@ -5,7 +5,6 @@ import (
 	"capyfile/capyfs"
 	"capyfile/capysvc"
 	"capyfile/capysvc/common"
-	"capyfile/capysvc/service"
 	"capyfile/capysvr/httpio"
 	"context"
 	"errors"
@@ -218,10 +217,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 
 	// Can be updated to run the processor concurrently.
 	out, procErr := svc.RunProcessor(
-		&service.ServerContext{
-			Req:        r,
-			EtcdClient: common.EtcdClient,
-		},
+		capysvc.NewServerContext(r, common.EtcdClient),
 		proc.Name,
 		in)
 	if procErr != nil {
