@@ -5,7 +5,6 @@ import (
 	"capyfile/files"
 	"capyfile/operations"
 	"capyfile/operations/filetime"
-	"capyfile/parameters"
 	"errors"
 	"fmt"
 	"sync"
@@ -404,11 +403,6 @@ func (o *Operation) initOperationHandler(ctx Context) error {
 		return nil
 	}
 
-	parameterLoaderProvider, providerErr := ctx.ParameterLoaderProvider()
-	if providerErr != nil {
-		return providerErr
-	}
-
 	o.handlerLock.Lock()
 	defer o.handlerLock.Unlock()
 
@@ -420,35 +414,41 @@ func (o *Operation) initOperationHandler(ctx Context) error {
 	var ohErr error
 
 	switch o.Name {
+	case "http_multipart_form_input_read":
+		oh, ohErr = o.newHttpMultipartFormInputReadOperation(ctx)
+		break
+	case "http_octet_stream_input_read":
+		oh, ohErr = o.newHttpOctetStreamInputReadOperation(ctx)
+		break
 	case "file_size_validate":
-		oh, ohErr = o.newFileSizeValidateOperation(parameterLoaderProvider)
+		oh, ohErr = o.newFileSizeValidateOperation(ctx)
 		break
 	case "file_type_validate":
-		oh, ohErr = o.newFileTypeValidateOperation(parameterLoaderProvider)
+		oh, ohErr = o.newFileTypeValidateOperation(ctx)
 		break
 	case "file_time_validate":
-		oh, ohErr = o.newFileTimeValidateOperation(parameterLoaderProvider)
+		oh, ohErr = o.newFileTimeValidateOperation(ctx)
 		break
 	case "exiftool_metadata_cleanup":
-		oh, ohErr = o.newExiftoolMetadataCleanupOperation(parameterLoaderProvider)
+		oh, ohErr = o.newExiftoolMetadataCleanupOperation()
 		break
 	case "image_convert":
-		oh, ohErr = o.newImageConvertOperation(parameterLoaderProvider)
+		oh, ohErr = o.newImageConvertOperation(ctx)
 		break
 	case "s3_upload":
-		oh, ohErr = o.newS3UploadOperation(parameterLoaderProvider)
+		oh, ohErr = o.newS3UploadOperation(ctx)
 		break
 	//case "s3_upload_v2":
 	//	oh, ohErr = o.newS3UploadV2Operation(parameterLoaderProvider)
 	//	break
 	case "filesystem_input_read":
-		oh, ohErr = o.newFilesystemInputReadOperation(parameterLoaderProvider)
+		oh, ohErr = o.newFilesystemInputReadOperation(ctx)
 		break
 	case "filesystem_input_write":
-		oh, ohErr = o.newFilesystemInputWriteOperation(parameterLoaderProvider)
+		oh, ohErr = o.newFilesystemInputWriteOperation(ctx)
 		break
 	case "filesystem_input_remove":
-		oh, ohErr = o.newFilesystemInputRemoveOperation(parameterLoaderProvider)
+		oh, ohErr = o.newFilesystemInputRemoveOperation()
 		break
 	default:
 		return fmt.Errorf("unknown operation \"%s\"", o.Name)
@@ -468,9 +468,42 @@ type OperationParameter struct {
 	Source     any    `json:"source"`
 }
 
+func (o *Operation) newHttpMultipartFormInputReadOperation(
+	ctx Context,
+) (*operations.HttpMultipartFormInputReadOperation, error) {
+	req := ctx.Request()
+	if req == nil {
+		return nil, errors.New("http request is not available in the given context")
+	}
+
+	return &operations.HttpMultipartFormInputReadOperation{
+		Name: o.Name,
+		Req:  req,
+	}, nil
+}
+
+func (o *Operation) newHttpOctetStreamInputReadOperation(
+	ctx Context,
+) (*operations.HttpOctetStreamInputReadOperation, error) {
+	req := ctx.Request()
+	if req == nil {
+		return nil, errors.New("http request is not available in the given context")
+	}
+
+	return &operations.HttpOctetStreamInputReadOperation{
+		Name: o.Name,
+		Req:  req,
+	}, nil
+}
+
 func (o *Operation) newFileSizeValidateOperation(
-	parameterLoaderProvider parameters.ParameterLoaderProvider,
+	ctx Context,
 ) (*operations.FileSizeValidateOperation, error) {
+	parameterLoaderProvider, providerErr := ctx.ParameterLoaderProvider()
+	if providerErr != nil {
+		return nil, providerErr
+	}
+
 	var minFileSize int64 = 0
 	if minFileSizeParameter, ok := o.Params["minFileSize"]; ok {
 		parameterLoader, loaderErr := parameterLoaderProvider.ParameterLoader(
@@ -521,8 +554,13 @@ func (o *Operation) newFileSizeValidateOperation(
 }
 
 func (o *Operation) newFileTypeValidateOperation(
-	parameterLoaderProvider parameters.ParameterLoaderProvider,
+	ctx Context,
 ) (*operations.FileTypeValidateOperation, error) {
+	parameterLoaderProvider, providerErr := ctx.ParameterLoaderProvider()
+	if providerErr != nil {
+		return nil, providerErr
+	}
+
 	var allowedMimeTypes []string
 	if allowedMimeTypeParameter, ok := o.Params["allowedMimeTypes"]; ok {
 		parameterLoader, loaderErr := parameterLoaderProvider.ParameterLoader(
@@ -552,8 +590,13 @@ func (o *Operation) newFileTypeValidateOperation(
 }
 
 func (o *Operation) newFileTimeValidateOperation(
-	parameterLoaderProvider parameters.ParameterLoaderProvider,
+	ctx Context,
 ) (*operations.FileTimeValidateOperation, error) {
+	parameterLoaderProvider, providerErr := ctx.ParameterLoaderProvider()
+	if providerErr != nil {
+		return nil, providerErr
+	}
+
 	timeParamValExtractor := func(paramName string) (time.Time, error) {
 		var paramVal time.Time
 		if param, ok := o.Params[paramName]; ok {
@@ -637,17 +680,20 @@ func (o *Operation) newFileTimeValidateOperation(
 	}, nil
 }
 
-func (o *Operation) newExiftoolMetadataCleanupOperation(
-	parameterLoaderProvider parameters.ParameterLoaderProvider,
-) (*operations.ExiftoolMetadataCleanupOperation, error) {
+func (o *Operation) newExiftoolMetadataCleanupOperation() (*operations.ExiftoolMetadataCleanupOperation, error) {
 	return &operations.ExiftoolMetadataCleanupOperation{
 		Name: o.Name,
 	}, nil
 }
 
 func (o *Operation) newImageConvertOperation(
-	parameterLoaderProvider parameters.ParameterLoaderProvider,
+	ctx Context,
 ) (*operations.ImageConvertOperation, error) {
+	parameterLoaderProvider, providerErr := ctx.ParameterLoaderProvider()
+	if providerErr != nil {
+		return nil, providerErr
+	}
+
 	var toMimeType string
 	if toMimeTypeParameter, ok := o.Params["toMimeType"]; ok {
 		parameterLoader, loaderErr := parameterLoaderProvider.ParameterLoader(
@@ -698,8 +744,13 @@ func (o *Operation) newImageConvertOperation(
 }
 
 func (o *Operation) newS3UploadOperation(
-	parameterLoaderProvider parameters.ParameterLoaderProvider,
+	ctx Context,
 ) (*operations.S3UploadOperation, error) {
+	parameterLoaderProvider, providerErr := ctx.ParameterLoaderProvider()
+	if providerErr != nil {
+		return nil, providerErr
+	}
+
 	var accessKeyId = ""
 	if accessKeyIdParameter, ok := o.Params["accessKeyId"]; ok {
 		parameterLoader, loaderErr := parameterLoaderProvider.ParameterLoader(
@@ -832,8 +883,13 @@ func (o *Operation) newS3UploadOperation(
 }
 
 func (o *Operation) newS3UploadV2Operation(
-	parameterLoaderProvider parameters.ParameterLoaderProvider,
+	ctx Context,
 ) (*operations.S3UploadV2Operation, error) {
+	parameterLoaderProvider, providerErr := ctx.ParameterLoaderProvider()
+	if providerErr != nil {
+		return nil, providerErr
+	}
+
 	var accessKeyId = ""
 	if accessKeyIdParameter, ok := o.Params["accessKeyId"]; ok {
 		parameterLoader, loaderErr := parameterLoaderProvider.ParameterLoader(
@@ -965,8 +1021,13 @@ func (o *Operation) newS3UploadV2Operation(
 }
 
 func (o *Operation) newFilesystemInputReadOperation(
-	parameterLoaderProvider parameters.ParameterLoaderProvider,
+	ctx Context,
 ) (*operations.FilesystemInputReadOperation, error) {
+	parameterLoaderProvider, providerErr := ctx.ParameterLoaderProvider()
+	if providerErr != nil {
+		return nil, providerErr
+	}
+
 	var target string
 	if targetParameter, ok := o.Params["target"]; ok {
 		parameterLoader, loaderErr := parameterLoaderProvider.ParameterLoader(
@@ -996,8 +1057,13 @@ func (o *Operation) newFilesystemInputReadOperation(
 }
 
 func (o *Operation) newFilesystemInputWriteOperation(
-	parameterLoaderProvider parameters.ParameterLoaderProvider,
+	ctx Context,
 ) (*operations.FilesystemInputWriteOperation, error) {
+	parameterLoaderProvider, providerErr := ctx.ParameterLoaderProvider()
+	if providerErr != nil {
+		return nil, providerErr
+	}
+
 	var destination string
 	if destinationParameter, ok := o.Params["destination"]; ok {
 		parameterLoader, loaderErr := parameterLoaderProvider.ParameterLoader(
@@ -1047,9 +1113,7 @@ func (o *Operation) newFilesystemInputWriteOperation(
 	}, nil
 }
 
-func (o *Operation) newFilesystemInputRemoveOperation(
-	parameterLoaderProvider parameters.ParameterLoaderProvider,
-) (*operations.FilesystemInputRemoveOperation, error) {
+func (o *Operation) newFilesystemInputRemoveOperation() (*operations.FilesystemInputRemoveOperation, error) {
 	return &operations.FilesystemInputRemoveOperation{
 		Name:   o.Name,
 		Params: &operations.FilesystemInputRemoveOperationParams{},
