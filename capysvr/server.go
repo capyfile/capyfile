@@ -6,6 +6,8 @@ import (
 	"capyfile/capysvc"
 	"capyfile/capysvc/common"
 	"capyfile/capysvr/httpio"
+	"capyfile/files"
+	"capyfile/operations"
 	"context"
 	"errors"
 	"golang.org/x/exp/slog"
@@ -180,46 +182,62 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// This functionality is going to be moved to the operation like "http_input_read".
-	in, inputReaderErr := httpio.ReadInput(r)
-	if inputReaderErr != nil {
-		_ = httpio.WriteError(
-			httpio.NewHTTPAwareError(
-				500,
-				"REQUEST_INPUT_READING_FAILURE",
-				"request input reading failure",
-				inputReaderErr,
-			),
-			w,
-		)
-		return
-	}
+	errorCh := make(chan operations.OperationError)
+	notificationCh := make(chan operations.OperationNotification)
 
-	common.Logger.Info(
-		"input has been extracted",
-		slog.String("service", svc.Name),
-		slog.String("processor", proc.Name),
-		slog.Int("inputLength", len(in)),
-	)
+	// Log errors and notifications.
+	go func() {
+		for err := range errorCh {
+			common.Logger.Error(
+				"operation error",
+				slog.String("service", svc.Name),
+				slog.String("processor", proc.Name),
+				slog.String("operation", err.OperationName),
+				slog.Any("error", err.Err),
+			)
+		}
+	}()
+	go func() {
+		for notification := range notificationCh {
+			var operationStatus string
+			switch notification.OperationStatus {
+			case operations.StatusSkipped:
+				operationStatus = "SKIPPED"
+			case operations.StatusStarted:
+				operationStatus = "STARTED"
+			case operations.StatusFinished:
+				operationStatus = "FINISHED"
+			case operations.StatusFailed:
+				operationStatus = "FAILED"
+			}
 
-	if len(in) == 0 {
-		_ = httpio.WriteError(
-			httpio.NewHTTPAwareError(
-				400,
-				"NO_INPUT_PROVIDED",
-				"no input provided",
-				nil,
-			),
-			w,
-		)
-		return
-	}
+			var filename = ""
+			if notification.ProcessableFile != nil {
+				filename = notification.ProcessableFile.OriginalFilename()
+			}
 
-	// Can be updated to run the processor concurrently.
-	out, procErr := svc.RunProcessor(
+			common.Logger.Info(
+				"operation notification",
+				slog.String("service", svc.Name),
+				slog.String("processor", proc.Name),
+				slog.String("operation", notification.OperationName),
+				slog.String("operationStatus", operationStatus),
+				slog.String("operationStatusMessage", notification.OperationStatusMessage),
+				slog.String("filename", filename),
+			)
+		}
+	}()
+
+	// Here we do not check the http input is empty. It gives an option to trigger the
+	// processor that retrieves an input from elsewhere (e.g. http, filesystem, some queue).
+
+	out, procErr := svc.RunProcessorConcurrently(
 		capysvc.NewServerContext(r, common.EtcdClient),
 		proc.Name,
-		in)
+		[]files.ProcessableFile{},
+		errorCh,
+		notificationCh,
+	)
 	if procErr != nil {
 		common.Logger.Error(
 			"service processor error",

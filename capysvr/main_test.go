@@ -21,6 +21,9 @@ var testServiceDefinition = capysvc.Service{
 			Name: "bin_file",
 			Operations: []capysvc.Operation{
 				{
+					Name: "http_multipart_form_input_read",
+				},
+				{
 					Name: "file_size_validate",
 					Params: map[string]capysvc.OperationParameter{
 						"maxFileSize": {

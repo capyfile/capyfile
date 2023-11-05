@@ -68,7 +68,7 @@ This service definition setting up a pipeline that reads the log files from the 
 uploads the files that are older than 30 days to S3-compatible storage and removes them.
 ```json
 {
-  "version": "1.0",
+  "version": "1.1",
   "name": "logs",
   "processors": [
     {
@@ -187,12 +187,15 @@ This service definition setting up a pipeline that allows .pdf, .doc and .docx f
 less than 10MB. Valid files will be uploaded to S3-compatible storage.
 ```json
 {
-  "version": "1.0",
+  "version": "1.1",
   "name": "documents",
   "processors": [
     {
       "name": "upload",
       "operations": [
+        {
+          "name": "http_multipart_form_input_read"
+        },
         {
           "name": "file_size_validate",
           "params": {
