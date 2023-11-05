@@ -118,6 +118,24 @@ func (p *Processor) RunOperationsConcurrently(
 		go func(op *Operation) {
 			if op.handler.AllowConcurrency() {
 				for !op.Completed {
+					if op.prevOperation != nil {
+						// If what we deal with here is not the first operation, we need to check
+						// whether the previous operation has produced any output. If not, then
+						// the current concurrent operation can be skipped.
+						if op.prevOperation.Completed && op.prevOperation.OutCnt == 0 {
+							op.complete()
+							break
+						}
+					} else {
+						// If the first operation is happened to be concurrent, we need to check
+						// whether there is any input for it. If not, then the current concurrent
+						// operation can be skipped.
+						if op.InCnt == 0 {
+							op.complete()
+							break
+						}
+					}
+
 					opIn := op.dequeueIn(1)
 					if len(opIn) == 0 {
 						continue
@@ -171,6 +189,7 @@ func (p *Processor) initOperations(ctx Context) error {
 		op.handlerLock = &sync.Mutex{}
 		op.inLock = &sync.Mutex{}
 		op.inCntLock = &sync.Mutex{}
+		op.outCntLock = &sync.Mutex{}
 		op.completedLock = &sync.Mutex{}
 
 		opHandlerErr := op.initOperationHandler(ctx)
@@ -216,6 +235,13 @@ type Operation struct {
 	// the empty input.
 	inCntLock *sync.Mutex
 	InCnt     int
+	// OutCnt is needed for the cases when we want to know whether the operation
+	// produced any output.
+	// For example, if the operation is completed and there is no output, we
+	// should skip any concurrent operations because by their nature they
+	// can't work with empty input.
+	outCntLock *sync.Mutex
+	OutCnt     int
 
 	completedLock *sync.Mutex
 	// Whether the operation is completed which means that there is no more input
@@ -288,7 +314,8 @@ func (o *Operation) handleAndPassOutput(
 				outCh <- skipIn
 			}
 
-			o.decrInCount(len(in))
+			o.decrInCount(len(skipIn))
+			o.incrOutCount(len(skipIn))
 		}
 	} else {
 		targetIn = in
@@ -313,6 +340,7 @@ func (o *Operation) handleAndPassOutput(
 	}
 
 	o.decrInCount(len(targetIn))
+	o.incrOutCount(len(opHandlerOut))
 
 	if !o.Completed {
 		if o.prevOperation != nil {
@@ -395,6 +423,13 @@ func (o *Operation) decrInCount(i int) {
 	defer o.inCntLock.Unlock()
 
 	o.InCnt -= i
+}
+
+func (o *Operation) incrOutCount(i int) {
+	o.outCntLock.Lock()
+	defer o.outCntLock.Unlock()
+
+	o.OutCnt += i
 }
 
 func (o *Operation) initOperationHandler(ctx Context) error {

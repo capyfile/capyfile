@@ -298,3 +298,25 @@ func TestService_RunProcessorsConcurrentlyWithCliContext(t *testing.T) {
 			binProcessableFile.FileProcessingError.Code())
 	}
 }
+
+func TestService_RunProcessorsConcurrentlyWithEmptyInput(t *testing.T) {
+	capyfs.InitCopyOnWriteFilesystem()
+
+	sd := testServiceDefinitionForCliContext()
+
+	out, err := sd.RunProcessorConcurrently(
+		NewCliContext(),
+		"photo",
+		[]files.ProcessableFile{},
+		nil,
+		nil,
+	)
+
+	if err != nil {
+		t.Fatalf("expect no error while running processor, got %v", err)
+	}
+
+	if len(out) != 0 {
+		t.Fatalf("len(out) = %d, want 0", len(out))
+	}
+}
