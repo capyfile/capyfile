@@ -21,6 +21,8 @@ Top level of the configuration file is the `service` object. It holds the proces
 hold the operations.
 
 Available operations are:
+* `http_multipart_form_input_read` - read the files from the HTTP request body as `multipart/form-data` (`capysvr` only)
+* `http_octet_stream_input_read` - read the files from the HTTP request body as `application/octet-stream` (`capysvr` only)
 * `filesystem_input_read` - read the files from the filesystem
 * `filesystem_input_write` - write the files to the filesystem
 * `filesystem_input_remove` - remove the files from the filesystem
