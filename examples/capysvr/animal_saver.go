@@ -67,10 +67,11 @@ func capyfileProxyHandler(w http.ResponseWriter, r *http.Request) {
 			`["image/jpeg", "image/png"]`)
 	}
 	// Every animal is going to be stored in their own bucket.
-	// We assume that all the necessary buckets are already created.
+	// We assume that all the necessary buckets are already created. If not, you can just
+	// replace it with your bucket name to upload all into one bucket.
 	r.Header.Set("X-Capyfile-S3Upload-Bucket", animal)
 
-	r.URL.Path = "/upload/animal"
+	r.URL.Path = "/animals/upload"
 
 	proxy := httputil.NewSingleHostReverseProxy(&url.URL{
 		Scheme: "http",

@@ -1,1 +1,0 @@
-Little more details about this example app can be found in the article [Can we save animals using Golang?](https://medium.com/@bzdev/can-we-save-animals-using-golang-98cd2b87d2be).
