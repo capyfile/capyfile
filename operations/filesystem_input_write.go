@@ -55,6 +55,22 @@ func (o *FilesystemInputWriteOperation) Handle(
 			}
 			destFilename := filepath.Join(o.Params.Destination, base)
 
+			_, fsErr := pf.File.Seek(0, 0)
+			if fsErr != nil {
+				pf.SetFileProcessingError(
+					NewFileReadOffsetCanNotBeSetError(fsErr),
+				)
+
+				if errorCh != nil {
+					errorCh <- o.operationError(fsErr, pf)
+				}
+				if notificationCh != nil {
+					notificationCh <- o.notificationBuilder().Failed("can not set read offset for the file", pf, fsErr)
+				}
+
+				return
+			}
+
 			writeErr := capyfs.FilesystemUtils.WriteReader(destFilename, pf.File)
 			if writeErr != nil {
 				pf.SetFileProcessingError(
