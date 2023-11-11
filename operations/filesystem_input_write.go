@@ -47,14 +47,6 @@ func (o *FilesystemInputWriteOperation) Handle(
 				notificationCh <- o.notificationBuilder().Started("file write started", pf)
 			}
 
-			var base string
-			if o.Params.UseOriginalFilename {
-				base = filepath.Base(pf.OriginalFilename())
-			} else {
-				base = pf.GeneratedFilename()
-			}
-			destFilename := filepath.Join(o.Params.Destination, base)
-
 			_, fsErr := pf.File.Seek(0, 0)
 			if fsErr != nil {
 				pf.SetFileProcessingError(
@@ -70,6 +62,20 @@ func (o *FilesystemInputWriteOperation) Handle(
 
 				return
 			}
+
+			var base string
+			if o.Params.UseOriginalFilename {
+				base = filepath.Base(pf.OriginalFilename())
+				// In addition to it, we need to ensure that the extension is relevant.
+				// This is for the cases we transform the file to another format, etc.
+				ext := filepath.Ext(pf.OriginalFilename())
+				if ext != "" {
+					base = base[:len(base)-len(ext)] + filepath.Ext(pf.GeneratedFilename())
+				}
+			} else {
+				base = pf.GeneratedFilename()
+			}
+			destFilename := filepath.Join(o.Params.Destination, base)
 
 			writeErr := capyfs.FilesystemUtils.WriteReader(destFilename, pf.File)
 			if writeErr != nil {
