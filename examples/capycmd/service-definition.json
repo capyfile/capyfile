@@ -1,0 +1,55 @@
+{
+  "version": "1.1",
+  "name": "images",
+  "processors": [
+    {
+      "name": "convert",
+      "operations": [
+        {
+          "name": "filesystem_input_read",
+          "params": {
+            "target": {
+              "sourceType": "env_var",
+              "source": "INPUT_READ_TARGET"
+            }
+          }
+        },
+        {
+          "name": "file_type_validate",
+          "params": {
+            "allowedMimeTypes": {
+              "sourceType": "value",
+              "source": ["image/jpeg", "image/png", "image/heif", "image/heic", "image/webp"]
+            }
+          }
+        },
+        {
+          "name": "image_convert",
+          "params": {
+            "toMimeType": {
+              "sourceType": "value",
+              "source": "image/jpeg"
+            },
+            "quality": {
+              "sourceType": "value",
+              "source": "high"
+            }
+          }
+        },
+        {
+          "name": "filesystem_input_write",
+          "params": {
+            "destination": {
+              "sourceType": "env_var",
+              "source": "INPUT_WRITE_DESTINATION"
+            },
+            "useOriginalFilename": {
+              "sourceType": "value",
+              "source": true
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

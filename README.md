@@ -135,7 +135,7 @@ Now when you have a service definition file, you can run the file processing pip
 # Provide service definition stored in the local filesystem 
 # via CAPYFILE_SERVICE_DEFINITION_FILE=/etc/capyfile/service-definition.json
 docker run \
-    --name capyfile_server \
+    --name capyfile_cmd \
     --mount type=bind,source=./service-definition.json,target=/etc/capyfile/service-definition.json \
     --mount type=bind,source=/var/log/rotated-logs,target=/var/log/rotated-logs \
     --env CAPYFILE_SERVICE_DEFINITION_FILE=/etc/capyfile/service-definition.json \
