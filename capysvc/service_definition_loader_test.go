@@ -10,8 +10,26 @@ import (
 	"testing"
 )
 
-func TestLoadServiceDefinitionFromFile(t *testing.T) {
+func TestLoadServiceDefinitionFromJsonFile(t *testing.T) {
 	setenvErr := os.Setenv("CAPYFILE_SERVICE_DEFINITION_FILE", "testdata/service-definition.json")
+	if setenvErr != nil {
+		t.Fatalf("expected no error while setting CAPYFILE_SERVICE_DEFINITION_FILE env varm got %v", setenvErr)
+	}
+
+	sdErr := LoadServiceDefinition("")
+	if sdErr != nil {
+		t.Fatalf("expected no error while loading service definition, got %v", sdErr)
+	}
+
+	if serviceDefinition == nil {
+		t.Fatalf("expected loaded ServiceDevinition, got nil")
+	}
+
+	serviceDefinitionAssertions(serviceDefinition, t)
+}
+
+func TestLoadServiceDefinitionFromYamlFile(t *testing.T) {
+	setenvErr := os.Setenv("CAPYFILE_SERVICE_DEFINITION_FILE", "testdata/service-definition.yml")
 	if setenvErr != nil {
 		t.Fatalf("expected no error while setting CAPYFILE_SERVICE_DEFINITION_FILE env varm got %v", setenvErr)
 	}
@@ -86,11 +104,11 @@ type operationParamTestCase struct {
 }
 
 func serviceDefinitionAssertions(sd *Service, t *testing.T) {
-	if sd.Version != "1.0" {
+	if sd.Version != "1.1" {
 		t.Fatalf("serviceDefinition.Version = %s, want 1.0", sd.Version)
 	}
 
-	if sd.Name != "messenger" {
+	if sd.Name != "avatars" {
 		t.Fatalf("serviceDefinition.Name = %s, want messenger", sd.Name)
 	}
 
@@ -99,19 +117,20 @@ func serviceDefinitionAssertions(sd *Service, t *testing.T) {
 	}
 
 	idx := slices.IndexFunc(sd.Processors, func(p Processor) bool {
-		return p.Name == "avatar"
+		return p.Name == "upload"
 	})
 	if idx == -1 {
 		t.Fatalf("FindProcessor.Name != avatar, want FindProcessor.Name == avatar")
 	}
 
 	for _, p := range sd.Processors {
-		if p.Name == "avatar" {
-			if len(p.Operations) != 4 {
+		if p.Name == "upload" {
+			if len(p.Operations) != 5 {
 				t.Fatalf("len(FindProcessor.Operations) = %d, want 4", len(p.Operations))
 			}
 
 			operationNamesCases := []string{
+				"http_multipart_form_data_input_read",
 				"file_size_validate",
 				"file_type_validate",
 				"metadata_cleanup",
@@ -127,6 +146,10 @@ func serviceDefinitionAssertions(sd *Service, t *testing.T) {
 			}
 
 			operationParamsCases := []operationTestCase{
+				{
+					name:   "http_multipart_form_data_input_read",
+					params: []operationParamTestCase{},
+				},
 				{
 					name: "file_size_validate",
 					params: []operationParamTestCase{
@@ -198,10 +221,41 @@ func serviceDefinitionAssertions(sd *Service, t *testing.T) {
 										"Opeartion[%s].%s.source = %s, want %s",
 										o.Name, p.paramName, v.Source, p.source)
 								}
-								if !reflect.DeepEqual(v.Source, p.source) {
-									t.Fatalf(
-										"Opeartion[%s].%s.source = %v, want %v",
-										o.Name, p.paramName, v.Source, p.source)
+								// json parser return float64 for numbers
+								// yaml parser return int64 for numbers
+								// We need to make them somehow comparable
+								if p.paramName == "maxFileSize" {
+									var actualValue int64 = 0
+									switch reflect.ValueOf(v.Source).Kind() {
+									case reflect.Float64:
+										actualValue = int64(reflect.ValueOf(v.Source).Float())
+									case reflect.Int64, reflect.Int:
+										actualValue = reflect.ValueOf(v.Source).Int()
+									default:
+										t.Fatalf("Failed to parse Opeartion[%s].%s.source", o.Name, p.paramName)
+									}
+
+									var expectedValue int64 = 0
+									switch reflect.ValueOf(p.source).Kind() {
+									case reflect.Float64:
+										expectedValue = int64(reflect.ValueOf(p.source).Float())
+									case reflect.Int64, reflect.Int:
+										expectedValue = reflect.ValueOf(p.source).Int()
+									default:
+										t.Fatalf("Failed to parse Opeartion[%s].%s.source", o.Name, p.paramName)
+									}
+
+									if expectedValue != actualValue {
+										t.Fatalf(
+											"Opeartion[%s].%s.source = %v, want %v",
+											o.Name, p.paramName, v.Source, p.source)
+									}
+								} else {
+									if !reflect.DeepEqual(v.Source, p.source) {
+										t.Fatalf(
+											"Opeartion[%s].%s.source = %v, want %v",
+											o.Name, p.paramName, v.Source, p.source)
+									}
 								}
 							} else {
 								t.Fatalf("Opeartion[%s].%s param not parsed", o.Name, p.paramName)

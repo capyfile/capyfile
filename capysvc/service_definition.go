@@ -12,9 +12,9 @@ import (
 )
 
 type Service struct {
-	Version    string      `json:"version"`
-	Name       string      `json:"name"`
-	Processors []Processor `json:"processors"`
+	Version    string      `json:"version" yaml:"version"`
+	Name       string      `json:"name" yaml:"name"`
+	Processors []Processor `json:"processors" yaml:"processors"`
 }
 
 func (s *Service) FindProcessor(processorName string) *Processor {
@@ -61,8 +61,8 @@ func (s *Service) RunProcessorConcurrently(
 }
 
 type Processor struct {
-	Name       string      `json:"name"`
-	Operations []Operation `json:"operations"`
+	Name       string      `json:"name" yaml:"name"`
+	Operations []Operation `json:"operations" yaml:"operations"`
 }
 
 func (p *Processor) RunOperations(
@@ -223,9 +223,9 @@ const (
 )
 
 type Operation struct {
-	Name        string                        `json:"name"`
-	TargetFiles string                        `json:"targetFiles"`
-	Params      map[string]OperationParameter `json:"params"`
+	Name        string                        `json:"name" yaml:"name"`
+	TargetFiles string                        `json:"targetFiles" yaml:"targetFiles"`
+	Params      map[string]OperationParameter `json:"params" yaml:"params"`
 
 	inLock *sync.Mutex
 	in     []files.ProcessableFile
@@ -499,8 +499,8 @@ func (o *Operation) initOperationHandler(ctx Context) error {
 }
 
 type OperationParameter struct {
-	SourceType string `json:"sourceType"`
-	Source     any    `json:"source"`
+	SourceType string `json:"sourceType" yaml:"sourceType"`
+	Source     any    `json:"source" yaml:"source"`
 }
 
 func (o *Operation) newHttpMultipartFormInputReadOperation(

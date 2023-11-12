@@ -2,9 +2,11 @@ package capysvc
 
 import (
 	"encoding/json"
+	"gopkg.in/yaml.v3"
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 )
 
 // So far Service is a service definition. Can be extended in the future.
@@ -69,12 +71,17 @@ func LoadTestServiceDefinition(testServiceDef *Service) {
 }
 
 func NewServiceDefinitionFromFile(filename string) (*Service, error) {
-	serviceDefJson, readErr := os.ReadFile(filename)
+	serviceDefBytes, readErr := os.ReadFile(filename)
 	if readErr != nil {
 		return nil, readErr
 	}
 
-	return newServiceDefinitionFromJson(serviceDefJson)
+	ext := filepath.Ext(filename)
+	if ext == ".yaml" || ext == ".yml" {
+		return newServiceDefinitionFromYaml(serviceDefBytes)
+	}
+
+	return newServiceDefinitionFromJson(serviceDefBytes)
 }
 
 func NewServiceDefinitionFromUrl(url string) (*Service, error) {
@@ -94,9 +101,12 @@ func NewServiceDefinitionFromUrl(url string) (*Service, error) {
 
 func newServiceDefinitionFromJson(serviceDefJson []byte) (serviceDef *Service, err error) {
 	err = json.Unmarshal(serviceDefJson, &serviceDef)
-	if err != nil {
-		return serviceDef, err
-	}
 
-	return serviceDef, nil
+	return serviceDef, err
+}
+
+func newServiceDefinitionFromYaml(serviceDefYaml []byte) (serviceDef *Service, err error) {
+	err = yaml.Unmarshal(serviceDefYaml, &serviceDef)
+
+	return serviceDef, err
 }

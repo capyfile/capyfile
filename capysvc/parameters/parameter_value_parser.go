@@ -380,7 +380,14 @@ func anyToIntValue(value any) (int64, error) {
 		return strconv.ParseInt(v, 10, 64)
 	}
 
-	return int64(value.(float64)), nil
+	switch reflect.ValueOf(value).Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return reflect.ValueOf(value).Int(), nil
+	case reflect.Float32, reflect.Float64:
+		return int64(reflect.ValueOf(value).Float()), nil
+	default:
+		return 0, errors.New("failed to parse integer value")
+	}
 }
 
 func anyToStringValue(value any) (string, error) {

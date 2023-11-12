@@ -1,10 +1,13 @@
 {
-  "version": "1.0",
-  "name": "messenger",
+  "version": "1.1",
+  "name": "avatars",
   "processors": [
     {
-      "name": "avatar",
+      "name": "upload",
       "operations": [
+        {
+          "name": "http_multipart_form_data_input_read"
+        },
         {
           "name": "file_size_validate",
           "params": {
