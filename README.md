@@ -15,7 +15,8 @@ File processing pipeline can be set up in **two simple steps**.
 
 ### 1. Prepare the service definition file.
 
-The service definition file is a file that describes the file processing pipeline.
+The service definition file is a file that describes the file processing pipeline. This file
+can be JSON or YAML.
 
 Top level of the configuration file is the `service` object. It holds the processors that
 hold the operations.
@@ -68,66 +69,43 @@ The below you can see a couple of examples of the service definition file.
 First example is a typical service definition file for the `capycmd` command line application. 
 This service definition setting up a pipeline that reads the log files from the filesystem,
 uploads the files that are older than 30 days to S3-compatible storage and removes them.
-```json
-{
-  "version": "1.1",
-  "name": "logs",
-  "processors": [
-    {
-      "name": "archive",
-      "operations": [
-        {
-          "name": "filesystem_input_read",
-          "params": {
-            "target": {
-              "sourceType": "value",
-              "source": "/var/log/rotated-logs/*"
-            }
-          }
-        },
-        {
-          "name": "file_time_validate",
-          "params": {
-            "maxMtime": {
-              "sourceType": "env_var",
-              "source": "MAX_LOG_FILE_AGE_RFC3339"
-            }
-          }
-        },
-        {
-          "name": "s3_upload",
-          "targetFiles": "without_errors",
-          "params": {
-            "accessKeyId": {
-              "sourceType": "secret",
-              "source": "aws_access_key_id"
-            },
-            "secretAccessKey": {
-              "sourceType": "secret",
-              "source": "aws_secret_access_key"
-            },
-            "endpoint": {
-              "sourceType": "value",
-              "source": "s3.amazonaws.com"
-            },
-            "region": {
-              "sourceType": "value",
-              "source": "us-east-1"
-            },
-            "bucket": {
-              "sourceType": "env_var",
-              "source": "AWS_LOGS_BUCKET"
-            }
-          }
-        },
-        {
-          "name": "filesystem_input_remove",
-          "targetFiles": "without_errors"
-        }
-      ]
-    }
-  ]
-}
+```yaml
+---
+version: '1.1'
+name: logs
+processors:
+  - name: archive
+    operations:
+      - name: filesystem_input_read
+        params:
+          target:
+            sourceType: value
+            source: "/var/log/rotated-logs/*"
+      - name: file_time_validate
+        params:
+          maxMtime:
+            sourceType: env_var
+            source: MAX_LOG_FILE_AGE_RFC3339
+      - name: s3_upload
+        targetFiles: without_errors
+        params:
+          accessKeyId:
+            sourceType: secret
+            source: aws_access_key_id
+          secretAccessKey:
+            sourceType: secret
+            source: aws_secret_access_key
+          endpoint:
+            sourceType: value
+            source: s3.amazonaws.com
+          region:
+            sourceType: value
+            source: us-east-1
+          bucket:
+            sourceType: env_var
+            source: AWS_LOGS_BUCKET
+      - name: filesystem_input_remove
+        targetFiles: without_errors
 ```
 
 Now when you have a service definition file, you can run the file processing pipeline.
@@ -136,9 +114,9 @@ Now when you have a service definition file, you can run the file processing pip
 # via CAPYFILE_SERVICE_DEFINITION_FILE=/etc/capyfile/service-definition.json
 docker run \
     --name capyfile_cmd \
-    --mount type=bind,source=./service-definition.json,target=/etc/capyfile/service-definition.json \
+    --mount type=bind,source=./service-definition.yml,target=/etc/capyfile/service-definition.yml \
     --mount type=bind,source=/var/log/rotated-logs,target=/var/log/rotated-logs \
-    --env CAPYFILE_SERVICE_DEFINITION_FILE=/etc/capyfile/service-definition.json \
+    --env CAPYFILE_SERVICE_DEFINITION_FILE=/etc/capyfile/service-definition.yml \
     --env MAX_LOG_FILE_AGE_RFC3339=$(date -d "30 days ago" -u +"%Y-%m-%dT%H:%M:%SZ") \
     --env AWS_LOGS_BUCKET=logs \
     --secret aws_access_key_id \
@@ -187,79 +165,56 @@ Running logs:archive service processor...
 
 This service definition setting up a pipeline that allows .pdf, .doc and .docx files that are
 less than 10MB. Valid files will be uploaded to S3-compatible storage.
-```json
-{
-  "version": "1.1",
-  "name": "documents",
-  "processors": [
-    {
-      "name": "upload",
-      "operations": [
-        {
-          "name": "http_multipart_form_input_read"
-        },
-        {
-          "name": "file_size_validate",
-          "params": {
-            "maxFileSize": {
-              "sourceType": "value",
-              "source": 1048576
-            }
-          }
-        },
-        {
-          "name": "file_type_validate",
-          "params": {
-            "allowedMimeTypes": {
-              "sourceType": "value",
-              "source": [
-                "application/pdf",
-                "application/msword",
-                "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-              ]
-            }
-          }
-        },
-        {
-          "name": "s3_upload",
-          "params": {
-            "accessKeyId": {
-              "sourceType": "secret",
-              "source": "aws_access_key_id"
-            },
-            "secretAccessKey": {
-              "sourceType": "secret",
-              "source": "aws_secret_access_key"
-            },
-            "endpoint": {
-              "sourceType": "etcd",
-              "source": "/services/upload/aws_endpoint"
-            },
-            "region": {
-              "sourceType": "etcd",
-              "source": "/services/upload/aws_region"
-            },
-            "bucket": {
-              "sourceType": "env_var",
-              "source": "AWS_DOCUMENTS_BUCKET"
-            }
-          }
-        }
-      ]
-    }
-  ]
-}
+```yaml
+---
+version: '1.1'
+name: documents
+processors:
+  - name: upload
+    operations:
+      - name: http_multipart_form_input_read
+      - name: file_size_validate
+        params:
+          maxFileSize:
+            sourceType: value
+            source: 1048576
+      - name: file_type_validate
+        params:
+          allowedMimeTypes:
+            sourceType: value
+            source:
+              - application/pdf
+              - application/msword
+              - application/vnd.openxmlformats-officedocument.wordprocessingml.document
+      - name: s3_upload
+        params:
+          accessKeyId:
+            sourceType: secret
+            source: aws_access_key_id
+          secretAccessKey:
+            sourceType: secret
+            source: aws_secret_access_key
+          endpoint:
+            sourceType: etcd
+            source: "/services/upload/aws_endpoint"
+          region:
+            sourceType: etcd
+            source: "/services/upload/aws_region"
+          bucket:
+            sourceType: env_var
+            source: AWS_DOCUMENTS_BUCKET
+
 ```
 
 Now when you have a service definition file, you can run the file processing pipeline 
 available over HTTP.
 ```bash
 # Provide service definition stored in the local filesystem 
-# via CAPYFILE_SERVICE_DEFINITION_FILE=/etc/capyfile/service-definition.json
+# via CAPYFILE_SERVICE_DEFINITION_FILE=/etc/capyfile/service-definition.yml
 docker run \
     --name capyfile_server \
-    --mount type=bind,source=./service-definition.json,target=/etc/capyfile/service-definition.json \
-    --env CAPYFILE_SERVICE_DEFINITION_FILE=/etc/capyfile/service-definition.json \
+    --mount type=bind,source=./service-definition.yml,target=/etc/capyfile/service-definition.yml \
+    --env CAPYFILE_SERVICE_DEFINITION_FILE=/etc/capyfile/service-definition.yml \
     --env AWS_DOCUMENTS_BUCKET=documents \
     --secret aws_access_key_id \
     --secret aws_secret_access_key \

@@ -1,0 +1,70 @@
+---
+version: '1.1'
+name: messenger
+processors:
+  - name: avatar
+    operations:
+      - name: http_multipart_form_input_read
+      - name: file_size_validate
+        params:
+          maxFileSize:
+            sourceType: value
+            source: 1048576
+      - name: file_type_validate
+        params:
+          allowedMimeTypes:
+            sourceType: value
+            source:
+              - image/jpeg
+              - image/png
+              - image/heif
+      - name: exiftool_metadata_cleanup
+      - name: image_convert
+        params:
+          toMimeType:
+            sourceType: value
+            source: image/jpeg
+          quality:
+            sourceType: value
+            source: high
+      - name: s3_upload
+        params:
+          accessKeyId:
+            sourceType: env_var
+            source: MINIO_ACCESS_KEY_ID
+          secretAccessKey:
+            sourceType: env_var
+            source: MINIO_SECRET_ACCESS_KEY
+          endpoint:
+            sourceType: env_var
+            source: MINIO_ENDPOINT
+          region:
+            sourceType: env_var
+            source: MINIO_REGION
+          bucket:
+            sourceType: env_var
+            source: MINIO_AVATARS_BUCKET
+  - name: attachment
+    operations:
+      - name: file_size_validate
+        params:
+          maxFileSize:
+            sourceType: value
+            source: 104857600
+      - name: s3_upload
+        params:
+          accessKeyId:
+            sourceType: env_var
+            source: AWS_ACCESS_KEY_ID
+          secretAccessKey:
+            sourceType: env_var
+            source: AWS_SECRET_ACCESS_KEY
+          endpoint:
+            sourceType: env_var
+            source: MINIO_ENDPOINT
+          region:
+            sourceType: env_var
+            source: MINIO_REGION
+          bucket:
+            sourceType: env_var
+            source: AWS_ATTACHMENT_BUCKET
