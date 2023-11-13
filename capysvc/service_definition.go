@@ -485,6 +485,9 @@ func (o *Operation) initOperationHandler(ctx Context) error {
 	case "filesystem_input_remove":
 		oh, ohErr = o.newFilesystemInputRemoveOperation()
 		break
+	case "command_exec":
+		oh, ohErr = o.newCommandExecOperation(ctx)
+		break
 	default:
 		return fmt.Errorf("unknown operation \"%s\"", o.Name)
 	}
@@ -1152,5 +1155,100 @@ func (o *Operation) newFilesystemInputRemoveOperation() (*operations.FilesystemI
 	return &operations.FilesystemInputRemoveOperation{
 		Name:   o.Name,
 		Params: &operations.FilesystemInputRemoveOperationParams{},
+	}, nil
+}
+
+func (o *Operation) newCommandExecOperation(ctx Context) (*operations.CommandExecOperation, error) {
+	parameterLoaderProvider, providerErr := ctx.ParameterLoaderProvider()
+	if providerErr != nil {
+		return nil, providerErr
+	}
+
+	var commandName string
+	if commandNameParameter, ok := o.Params["commandName"]; ok {
+		parameterLoader, loaderErr := parameterLoaderProvider.ParameterLoader(
+			commandNameParameter.SourceType,
+			commandNameParameter.Source,
+		)
+		if loaderErr != nil {
+			return nil, loaderErr
+		}
+
+		val, valErr := parameterLoader.LoadStringValue()
+		if valErr != nil {
+			return nil, valErr
+		}
+
+		commandName = val
+	} else {
+		return nil, errors.New("failed to retrieve \"commandName\" parameter")
+	}
+
+	var commandArgs []string
+	if commandArgsParameter, ok := o.Params["commandArgs"]; ok {
+		parameterLoader, loaderErr := parameterLoaderProvider.ParameterLoader(
+			commandArgsParameter.SourceType,
+			commandArgsParameter.Source,
+		)
+		if loaderErr != nil {
+			return nil, loaderErr
+		}
+
+		val, valErr := parameterLoader.LoadStringArrayValue()
+		if valErr != nil {
+			return nil, valErr
+		}
+
+		commandArgs = val
+	} else {
+		return nil, errors.New("failed to retrieve \"commandArgs\" parameter")
+	}
+
+	var outputFileDestination string
+	if outputFileDestinationParameter, ok := o.Params["outputFileDestination"]; ok {
+		parameterLoader, loaderErr := parameterLoaderProvider.ParameterLoader(
+			outputFileDestinationParameter.SourceType,
+			outputFileDestinationParameter.Source,
+		)
+		if loaderErr != nil {
+			return nil, loaderErr
+		}
+
+		val, valErr := parameterLoader.LoadStringValue()
+		if valErr != nil {
+			return nil, valErr
+		}
+
+		outputFileDestination = val
+	} else {
+		return nil, errors.New("failed to retrieve \"outputFileDestination\" parameter")
+	}
+
+	var allowParallelExecution bool = false
+	if allowParallelExecutionParameter, ok := o.Params["allowParallelExecution"]; ok {
+		parameterLoader, loaderErr := parameterLoaderProvider.ParameterLoader(
+			allowParallelExecutionParameter.SourceType,
+			allowParallelExecutionParameter.Source,
+		)
+		if loaderErr != nil {
+			return nil, loaderErr
+		}
+
+		val, valErr := parameterLoader.LoadBoolValue()
+		if valErr != nil {
+			return nil, valErr
+		}
+
+		allowParallelExecution = val
+	}
+
+	return &operations.CommandExecOperation{
+		Name: o.Name,
+		Params: &operations.CommandExecOperationParams{
+			CommandName:            commandName,
+			CommandArgs:            commandArgs,
+			OutputFileDestination:  outputFileDestination,
+			AllowParallelExecution: allowParallelExecution,
+		},
 	}, nil
 }
