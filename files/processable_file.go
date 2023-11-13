@@ -5,6 +5,7 @@ import (
 	"github.com/gabriel-vasile/mimetype"
 	gonanoid "github.com/matoous/go-nanoid/v2"
 	"github.com/spf13/afero"
+	"path/filepath"
 )
 
 // ProcessableFile The file that can be processed by the operations.
@@ -110,6 +111,7 @@ func (f *ProcessableFile) HasFileProcessingError() bool {
 	return f.FileProcessingError != nil
 }
 
+// GeneratedFilename The basename is the NanoID of the file and the extension is the MIME type extension.
 func (f *ProcessableFile) GeneratedFilename() string {
 	_ = f.loadMime()
 
@@ -118,6 +120,24 @@ func (f *ProcessableFile) GeneratedFilename() string {
 	}
 
 	return f.NanoID + f.mime.Extension()
+}
+
+func (f *ProcessableFile) Filename() string {
+	return filepath.Base(f.File.Name())
+}
+
+func (f *ProcessableFile) FileAbsolutePath() string {
+	return f.File.Name()
+}
+
+// FileBasename The basename of the file (filename without extension).
+func (f *ProcessableFile) FileBasename() string {
+	return f.Filename()[0 : len(f.Filename())-len(f.FileExtension())]
+}
+
+// FileExtension The extension of the generated file.
+func (f *ProcessableFile) FileExtension() string {
+	return filepath.Ext(f.File.Name())
 }
 
 func (f *ProcessableFile) OriginalFilename() string {
