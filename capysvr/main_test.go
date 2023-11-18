@@ -4,6 +4,7 @@ import (
 	"capyfile/capyfs"
 	"capyfile/capysvc"
 	"capyfile/capysvc/common"
+	"capyfile/parameters"
 	"encoding/json"
 	"golang.org/x/exp/rand"
 	"io"
@@ -25,7 +26,7 @@ var testServiceDefinition = capysvc.Service{
 				},
 				{
 					Name: "file_size_validate",
-					Params: map[string]capysvc.OperationParameter{
+					Params: map[string]parameters.Parameter{
 						"maxFileSize": {
 							SourceType: "value",
 							Source:     float64(5 * 1024), // max file size is 5kb

@@ -5,6 +5,7 @@ import (
 	"capyfile/capyfs"
 	"capyfile/files"
 	"capyfile/operations"
+	"capyfile/parameters"
 	"golang.org/x/exp/slices"
 	"net/http"
 	"testing"
@@ -19,7 +20,7 @@ func testServiceDefinitionForServerContext() Service {
 				Operations: []Operation{
 					{
 						Name: "file_size_validate",
-						Params: map[string]OperationParameter{
+						Params: map[string]parameters.Parameter{
 							"minFileSize": {
 								SourceType: "value",
 								Source:     float64(1),
@@ -32,7 +33,7 @@ func testServiceDefinitionForServerContext() Service {
 					},
 					{
 						Name: "file_type_validate",
-						Params: map[string]OperationParameter{
+						Params: map[string]parameters.Parameter{
 							"allowedMimeTypes": {
 								SourceType: "http_post",
 								Source:     "allowed_mime_types",
@@ -54,7 +55,7 @@ func testServiceDefinitionForCliContext() Service {
 				Operations: []Operation{
 					{
 						Name: "file_size_validate",
-						Params: map[string]OperationParameter{
+						Params: map[string]parameters.Parameter{
 							"minFileSize": {
 								SourceType: "value",
 								Source:     float64(1),
@@ -67,7 +68,7 @@ func testServiceDefinitionForCliContext() Service {
 					},
 					{
 						Name: "file_type_validate",
-						Params: map[string]OperationParameter{
+						Params: map[string]parameters.Parameter{
 							"allowedMimeTypes": {
 								SourceType: "value",
 								Source:     []string{"image/jpeg"},
