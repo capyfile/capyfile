@@ -5,6 +5,7 @@ import (
 	"capyfile/capyfs"
 	"capyfile/files"
 	"errors"
+	"fmt"
 	"html/template"
 	"os/exec"
 	"sync"
@@ -91,90 +92,42 @@ func (o *CommandExecOperation) Handle(
 			tmplData.OriginalExtension = pf.OriginalProcessableFile.FileExtension()
 		}
 
-		var commandNameBuf bytes.Buffer
-		commandNameTemplate, tmplParseErr := template.New("commandName").Parse(o.Params.CommandName)
-		if tmplParseErr != nil {
-			pf.SetFileProcessingError(
-				NewCommandTemplateCanNotBeRenderedError(tmplParseErr),
-			)
-
-			if errorCh != nil {
-				errorCh <- o.errorBuilder().Error(tmplParseErr)
-			}
-			if notificationCh != nil {
-				notificationCh <- o.notificationBuilder().Failed(
-					"command name template can not be parsed", pf, tmplParseErr)
-			}
-
-			outHolder.AppendToOut(pf)
-
-			return
-		}
-		tmplExecErr := commandNameTemplate.Execute(&commandNameBuf, tmplData)
-		if tmplExecErr != nil {
-			pf.SetFileProcessingError(
-				NewCommandTemplateCanNotBeRenderedError(tmplExecErr),
-			)
-
-			if errorCh != nil {
-				errorCh <- o.errorBuilder().Error(tmplExecErr)
-			}
-			if notificationCh != nil {
-				notificationCh <- o.notificationBuilder().Failed(
-					"command name template can not be rendered", pf, tmplExecErr)
-			}
-
+		cmdName, cmdNameErr := o.renderTemplate(
+			"command name",
+			o.Params.CommandName,
+			tmplData,
+			pf,
+			errorCh,
+			notificationCh,
+		)
+		if cmdNameErr != nil {
 			outHolder.AppendToOut(pf)
 
 			return
 		}
 
-		var commandArgs []string
+		var cmdArgs []string
 		for _, arg := range o.Params.CommandArgs {
-			var commandArgBuf bytes.Buffer
-			commandArgTemplate, argTmplParseErr := template.New("commandArg").Parse(arg)
-			if argTmplParseErr != nil {
-				pf.SetFileProcessingError(
-					NewCommandTemplateCanNotBeRenderedError(argTmplParseErr),
-				)
-
-				if errorCh != nil {
-					errorCh <- o.errorBuilder().Error(argTmplParseErr)
-				}
-				if notificationCh != nil {
-					notificationCh <- o.notificationBuilder().Failed(
-						"command argument template can not be parsed", pf, argTmplParseErr)
-				}
-
-				outHolder.AppendToOut(pf)
-
-				return
-			}
-			argTmplExecErr := commandArgTemplate.Execute(&commandArgBuf, tmplData)
-			if argTmplExecErr != nil {
-				pf.SetFileProcessingError(
-					NewCommandTemplateCanNotBeRenderedError(argTmplExecErr),
-				)
-
-				if errorCh != nil {
-					errorCh <- o.errorBuilder().Error(argTmplExecErr)
-				}
-				if notificationCh != nil {
-					notificationCh <- o.notificationBuilder().Failed(
-						"command argument template can not be rendered", pf, argTmplExecErr)
-				}
-
+			cmdArg, cmdArgErr := o.renderTemplate(
+				"command argument",
+				arg,
+				tmplData,
+				pf,
+				errorCh,
+				notificationCh,
+			)
+			if cmdArgErr != nil {
 				outHolder.AppendToOut(pf)
 
 				return
 			}
 
-			commandArgs = append(commandArgs, commandArgBuf.String())
+			cmdArgs = append(cmdArgs, cmdArg)
 		}
 
 		// Now when all the templates are rendered, we can execute the command.
 
-		output, execErr := o.CommandExecutor.Execute(commandNameBuf.String(), commandArgs...)
+		output, execErr := o.CommandExecutor.Execute(cmdName, cmdArgs...)
 		if execErr != nil {
 			pf.SetFileProcessingError(
 				NewCommandExecutionError(execErr),
@@ -198,45 +151,21 @@ func (o *CommandExecOperation) Handle(
 		// If the command has finished successfully, we need to render the output file destination
 		// template and create a processable file from it.
 
-		outputFileTmpl, outputFileTmplErr := template.New("outputFile").Parse(o.Params.OutputFileDestination)
-		if outputFileTmplErr != nil {
-			pf.SetFileProcessingError(
-				NewCommandTemplateCanNotBeRenderedError(outputFileTmplErr),
-			)
-
-			if errorCh != nil {
-				errorCh <- o.errorBuilder().Error(outputFileTmplErr)
-			}
-			if notificationCh != nil {
-				notificationCh <- o.notificationBuilder().Failed(
-					"output file destination template can not be parsed", pf, outputFileTmplErr)
-			}
-
-			outHolder.AppendToOut(pf)
-
-			return
-		}
-		var outputFileBuf bytes.Buffer
-		outputFileTmplExecErr := outputFileTmpl.Execute(&outputFileBuf, tmplData)
-		if outputFileTmplExecErr != nil {
-			pf.SetFileProcessingError(
-				NewCommandTemplateCanNotBeRenderedError(outputFileTmplExecErr),
-			)
-
-			if errorCh != nil {
-				errorCh <- o.errorBuilder().Error(outputFileTmplExecErr)
-			}
-			if notificationCh != nil {
-				notificationCh <- o.notificationBuilder().Failed(
-					"output file destination template can not be rendered", pf, outputFileTmplExecErr)
-			}
-
+		outputFile, outputFileErr := o.renderTemplate(
+			"output file destination",
+			o.Params.OutputFileDestination,
+			tmplData,
+			pf,
+			errorCh,
+			notificationCh,
+		)
+		if outputFileErr != nil {
 			outHolder.AppendToOut(pf)
 
 			return
 		}
 
-		file, fileOpenErr := capyfs.Filesystem.Open(outputFileBuf.String())
+		file, fileOpenErr := capyfs.Filesystem.Open(outputFile)
 		if fileOpenErr != nil {
 			pf.SetFileProcessingError(
 				NewFileIsUnreadableError(fileOpenErr),
@@ -278,6 +207,58 @@ func (o *CommandExecOperation) Handle(
 	wg.Wait()
 
 	return outHolder.Out, nil
+}
+
+func (o *CommandExecOperation) renderTemplate(
+	tmplName string,
+	tmpl string,
+	tmplData templateData,
+	pf *files.ProcessableFile,
+	errorCh chan<- OperationError,
+	notificationCh chan<- OperationNotification,
+) (string, error) {
+	parsedTmpl, tmplParseErr := template.New(tmplName).Parse(tmpl)
+	if tmplParseErr != nil {
+		pf.SetFileProcessingError(
+			NewCommandTemplateCanNotBeRenderedError(tmplParseErr),
+		)
+
+		if errorCh != nil {
+			errorCh <- o.errorBuilder().Error(tmplParseErr)
+		}
+		if notificationCh != nil {
+			notificationCh <- o.notificationBuilder().Failed(
+				fmt.Sprintf("%s template can not be parsed. Template: %s", tmplName, tmpl),
+				pf,
+				tmplParseErr,
+			)
+		}
+
+		return "", tmplParseErr
+	}
+
+	var buf bytes.Buffer
+	tmplExecErr := parsedTmpl.Execute(&buf, tmplData)
+	if tmplExecErr != nil {
+		pf.SetFileProcessingError(
+			NewCommandTemplateCanNotBeRenderedError(tmplExecErr),
+		)
+
+		if errorCh != nil {
+			errorCh <- o.errorBuilder().Error(tmplExecErr)
+		}
+		if notificationCh != nil {
+			notificationCh <- o.notificationBuilder().Failed(
+				fmt.Sprintf("%s template can not be rendered. Template: %s", tmplName, tmpl),
+				pf,
+				tmplExecErr,
+			)
+		}
+
+		return "", tmplExecErr
+	}
+
+	return buf.String(), nil
 }
 
 func (o *CommandExecOperation) errorBuilder() *OperationErrorBuilder {
