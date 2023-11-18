@@ -33,6 +33,7 @@ Available operations are:
 * `axiftool_metadata_cleanup` - clear file metadata if possible (require exiftool)
 * `image_convert` - convert image to another format (require libvips)
 * `s3_upload` - upload file to S3-compatible storage
+* `command_exec` - execute the command
 * ... will be more
 
 Operation parameters can be retrieved from those source types:
