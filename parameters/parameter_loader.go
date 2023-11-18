@@ -1,5 +1,10 @@
 package parameters
 
+type Parameter struct {
+	SourceType string `json:"sourceType" yaml:"sourceType"`
+	Source     any    `json:"source" yaml:"source"`
+}
+
 type ParameterLoaderProvider interface {
 	// HasParameterLoader Whether this parameter loader provider can load parameter from
 	// the given source type.

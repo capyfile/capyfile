@@ -41,7 +41,7 @@ type templateData struct {
 	Filename string
 	// Filename without extension. For example: file
 	Basename string
-	// File extension. For example: bin
+	// File extension. For example: .bin
 	Extension string
 
 	// The same stuff but for the original file.

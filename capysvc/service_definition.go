@@ -4,11 +4,11 @@ import (
 	"capyfile/capyerr"
 	"capyfile/files"
 	"capyfile/operations"
-	"capyfile/operations/filetime"
+	"capyfile/opfactories"
+	"capyfile/parameters"
 	"errors"
 	"fmt"
 	"sync"
-	"time"
 )
 
 type Service struct {
@@ -223,9 +223,9 @@ const (
 )
 
 type Operation struct {
-	Name        string                        `json:"name" yaml:"name"`
-	TargetFiles string                        `json:"targetFiles" yaml:"targetFiles"`
-	Params      map[string]OperationParameter `json:"params" yaml:"params"`
+	Name        string                          `json:"name" yaml:"name"`
+	TargetFiles string                          `json:"targetFiles" yaml:"targetFiles"`
+	Params      map[string]parameters.Parameter `json:"params" yaml:"params"`
 
 	inLock *sync.Mutex
 	in     []files.ProcessableFile
@@ -448,45 +448,89 @@ func (o *Operation) initOperationHandler(ctx Context) error {
 	var oh operations.OperationHandler
 	var ohErr error
 
+	parameterLoaderProvider, parameterLoaderProviderErr := ctx.ParameterLoaderProvider()
+	if parameterLoaderProviderErr != nil {
+		return parameterLoaderProviderErr
+	}
+
 	switch o.Name {
 	case "http_multipart_form_input_read":
-		oh, ohErr = o.newHttpMultipartFormInputReadOperation(ctx)
+		req := ctx.Request()
+		if req == nil {
+			return errors.New("http request is not available in the given context")
+		}
+
+		oh, ohErr = opfactories.NewHttpMultipartFormInputReadOperation(o.Name, ctx.Request())
 		break
 	case "http_octet_stream_input_read":
-		oh, ohErr = o.newHttpOctetStreamInputReadOperation(ctx)
+		req := ctx.Request()
+		if req == nil {
+			return errors.New("http request is not available in the given context")
+		}
+
+		oh, ohErr = opfactories.NewHttpOctetStreamInputReadOperation(o.Name, ctx.Request())
 		break
 	case "file_size_validate":
-		oh, ohErr = o.newFileSizeValidateOperation(ctx)
+		oh, ohErr = opfactories.NewFileSizeValidateOperation(
+			o.Name,
+			o.Params,
+			parameterLoaderProvider,
+		)
 		break
 	case "file_type_validate":
-		oh, ohErr = o.newFileTypeValidateOperation(ctx)
+		oh, ohErr = opfactories.NewFileTypeValidateOperation(
+			o.Name,
+			o.Params,
+			parameterLoaderProvider,
+		)
 		break
 	case "file_time_validate":
-		oh, ohErr = o.newFileTimeValidateOperation(ctx)
+		oh, ohErr = opfactories.NewFileTimeValidateOperation(
+			o.Name,
+			o.Params,
+			parameterLoaderProvider,
+		)
 		break
 	case "exiftool_metadata_cleanup":
-		oh, ohErr = o.newExiftoolMetadataCleanupOperation()
+		oh, ohErr = opfactories.NewExiftoolMetadataCleanupOperation(o.Name)
 		break
 	case "image_convert":
-		oh, ohErr = o.newImageConvertOperation(ctx)
+		oh, ohErr = opfactories.NewImageConvertOperation(
+			o.Name,
+			o.Params,
+			parameterLoaderProvider,
+		)
 		break
 	case "s3_upload":
-		oh, ohErr = o.newS3UploadOperation(ctx)
+		oh, ohErr = opfactories.NewS3UploadOperation(
+			o.Name,
+			o.Params,
+			parameterLoaderProvider,
+		)
 		break
-	//case "s3_upload_v2":
-	//	oh, ohErr = o.newS3UploadV2Operation(parameterLoaderProvider)
-	//	break
 	case "filesystem_input_read":
-		oh, ohErr = o.newFilesystemInputReadOperation(ctx)
+		oh, ohErr = opfactories.NewFilesystemInputReadOperation(
+			o.Name,
+			o.Params,
+			parameterLoaderProvider,
+		)
 		break
 	case "filesystem_input_write":
-		oh, ohErr = o.newFilesystemInputWriteOperation(ctx)
+		oh, ohErr = opfactories.NewFilesystemInputWriteOperation(
+			o.Name,
+			o.Params,
+			parameterLoaderProvider,
+		)
 		break
 	case "filesystem_input_remove":
-		oh, ohErr = o.newFilesystemInputRemoveOperation()
+		oh, ohErr = opfactories.NewFilesystemInputRemoveOperation(o.Name)
 		break
 	case "command_exec":
-		oh, ohErr = o.newCommandExecOperation(ctx)
+		oh, ohErr = opfactories.NewCommandExecOperation(
+			o.Name,
+			o.Params,
+			parameterLoaderProvider,
+		)
 		break
 	default:
 		return fmt.Errorf("unknown operation \"%s\"", o.Name)
@@ -499,756 +543,4 @@ func (o *Operation) initOperationHandler(ctx Context) error {
 	}
 
 	return ohErr
-}
-
-type OperationParameter struct {
-	SourceType string `json:"sourceType" yaml:"sourceType"`
-	Source     any    `json:"source" yaml:"source"`
-}
-
-func (o *Operation) newHttpMultipartFormInputReadOperation(
-	ctx Context,
-) (*operations.HttpMultipartFormInputReadOperation, error) {
-	req := ctx.Request()
-	if req == nil {
-		return nil, errors.New("http request is not available in the given context")
-	}
-
-	return &operations.HttpMultipartFormInputReadOperation{
-		Name: o.Name,
-		Req:  req,
-	}, nil
-}
-
-func (o *Operation) newHttpOctetStreamInputReadOperation(
-	ctx Context,
-) (*operations.HttpOctetStreamInputReadOperation, error) {
-	req := ctx.Request()
-	if req == nil {
-		return nil, errors.New("http request is not available in the given context")
-	}
-
-	return &operations.HttpOctetStreamInputReadOperation{
-		Name: o.Name,
-		Req:  req,
-	}, nil
-}
-
-func (o *Operation) newFileSizeValidateOperation(
-	ctx Context,
-) (*operations.FileSizeValidateOperation, error) {
-	parameterLoaderProvider, providerErr := ctx.ParameterLoaderProvider()
-	if providerErr != nil {
-		return nil, providerErr
-	}
-
-	var minFileSize int64 = 0
-	if minFileSizeParameter, ok := o.Params["minFileSize"]; ok {
-		parameterLoader, loaderErr := parameterLoaderProvider.ParameterLoader(
-			minFileSizeParameter.SourceType,
-			minFileSizeParameter.Source,
-		)
-		if loaderErr != nil {
-			return nil, loaderErr
-		}
-
-		val, valErr := parameterLoader.LoadIntValue()
-		if valErr != nil {
-			return nil, valErr
-		}
-
-		minFileSize = val
-	}
-
-	var maxFileSize int64 = 0
-	if maxFileSizeParameter, ok := o.Params["maxFileSize"]; ok {
-		parameterLoader, loaderErr := parameterLoaderProvider.ParameterLoader(
-			maxFileSizeParameter.SourceType,
-			maxFileSizeParameter.Source,
-		)
-		if loaderErr != nil {
-			return nil, loaderErr
-		}
-
-		val, valErr := parameterLoader.LoadIntValue()
-		if valErr != nil {
-			return nil, valErr
-		}
-
-		maxFileSize = val
-	}
-
-	if minFileSize == 0 && maxFileSize == 0 {
-		return nil, errors.New("either \"minFileSize\" or \"maxFileSize\" parameter must be set")
-	}
-
-	return &operations.FileSizeValidateOperation{
-		Name: o.Name,
-		Params: &operations.FileSizeValidateOperationParams{
-			MinFileSize: minFileSize,
-			MaxFileSize: maxFileSize,
-		},
-	}, nil
-}
-
-func (o *Operation) newFileTypeValidateOperation(
-	ctx Context,
-) (*operations.FileTypeValidateOperation, error) {
-	parameterLoaderProvider, providerErr := ctx.ParameterLoaderProvider()
-	if providerErr != nil {
-		return nil, providerErr
-	}
-
-	var allowedMimeTypes []string
-	if allowedMimeTypeParameter, ok := o.Params["allowedMimeTypes"]; ok {
-		parameterLoader, loaderErr := parameterLoaderProvider.ParameterLoader(
-			allowedMimeTypeParameter.SourceType,
-			allowedMimeTypeParameter.Source,
-		)
-		if loaderErr != nil {
-			return nil, loaderErr
-		}
-
-		val, valErr := parameterLoader.LoadStringArrayValue()
-		if valErr != nil {
-			return nil, valErr
-		}
-
-		allowedMimeTypes = val
-	} else {
-		return nil, errors.New("failed to retrieve \"allowedMimeTypes\" parameter")
-	}
-
-	return &operations.FileTypeValidateOperation{
-		Name: o.Name,
-		Params: &operations.FileTypeValidateOperationParams{
-			AllowedMimeTypes: allowedMimeTypes,
-		},
-	}, nil
-}
-
-func (o *Operation) newFileTimeValidateOperation(
-	ctx Context,
-) (*operations.FileTimeValidateOperation, error) {
-	parameterLoaderProvider, providerErr := ctx.ParameterLoaderProvider()
-	if providerErr != nil {
-		return nil, providerErr
-	}
-
-	timeParamValExtractor := func(paramName string) (time.Time, error) {
-		var paramVal time.Time
-		if param, ok := o.Params[paramName]; ok {
-			parameterLoader, loaderErr := parameterLoaderProvider.ParameterLoader(
-				param.SourceType,
-				param.Source,
-			)
-			if loaderErr != nil {
-				return paramVal, loaderErr
-			}
-
-			val, valErr := parameterLoader.LoadStringValue()
-			if valErr != nil {
-				return paramVal, valErr
-			}
-
-			timeVal, timeParseErr := time.Parse(time.RFC3339, val)
-			if timeParseErr != nil {
-				return paramVal, timeParseErr
-			}
-
-			paramVal = timeVal
-		}
-
-		return paramVal, nil
-	}
-
-	minAtime, minAtimeErr := timeParamValExtractor("minAtime")
-	if minAtimeErr != nil {
-		return nil, minAtimeErr
-	}
-
-	maxAtime, maxAtimeErr := timeParamValExtractor("maxAtime")
-	if maxAtimeErr != nil {
-		return nil, maxAtimeErr
-	}
-
-	minMtime, minMtimeErr := timeParamValExtractor("minMtime")
-	if minMtimeErr != nil {
-		return nil, minMtimeErr
-	}
-
-	maxMtime, maxMtimeErr := timeParamValExtractor("maxMtime")
-	if maxMtimeErr != nil {
-		return nil, maxMtimeErr
-	}
-
-	minCtime, minCtimeErr := timeParamValExtractor("minCtime")
-	if minCtimeErr != nil {
-		return nil, minCtimeErr
-	}
-
-	maxCtime, maxCtimeErr := timeParamValExtractor("maxCtime")
-	if maxCtimeErr != nil {
-		return nil, maxCtimeErr
-	}
-
-	if minAtime.IsZero() &&
-		maxAtime.IsZero() &&
-		minMtime.IsZero() &&
-		maxMtime.IsZero() &&
-		minCtime.IsZero() &&
-		maxCtime.IsZero() {
-		return nil, errors.New(
-			"either \"minAtime\", \"maxAtime\", \"minMtime\", \"maxMtime\", " +
-				"\"minCtime\", or \"maxCtime\" parameter must be set",
-		)
-	}
-
-	return &operations.FileTimeValidateOperation{
-		Name: o.Name,
-		Params: &operations.FileTimeValidateOperationParams{
-			MinAtime: minAtime,
-			MaxAtime: maxAtime,
-			MinMtime: minMtime,
-			MaxMtime: maxMtime,
-			MinCtime: minCtime,
-			MaxCtime: maxCtime,
-		},
-		TimeStatProvider: &filetime.PlatformTimeStatProvider{},
-	}, nil
-}
-
-func (o *Operation) newExiftoolMetadataCleanupOperation() (*operations.ExiftoolMetadataCleanupOperation, error) {
-	return &operations.ExiftoolMetadataCleanupOperation{
-		Name: o.Name,
-	}, nil
-}
-
-func (o *Operation) newImageConvertOperation(
-	ctx Context,
-) (*operations.ImageConvertOperation, error) {
-	parameterLoaderProvider, providerErr := ctx.ParameterLoaderProvider()
-	if providerErr != nil {
-		return nil, providerErr
-	}
-
-	var toMimeType string
-	if toMimeTypeParameter, ok := o.Params["toMimeType"]; ok {
-		parameterLoader, loaderErr := parameterLoaderProvider.ParameterLoader(
-			toMimeTypeParameter.SourceType,
-			toMimeTypeParameter.Source,
-		)
-		if loaderErr != nil {
-			return nil, loaderErr
-		}
-
-		val, valErr := parameterLoader.LoadStringValue()
-		if valErr != nil {
-			return nil, valErr
-		}
-
-		toMimeType = val
-	} else {
-		return nil, errors.New("failed to retrieve \"toMimeType\" parameter")
-	}
-
-	var quality string
-	if toMimeTypeParameter, ok := o.Params["quality"]; ok {
-		parameterLoader, loaderErr := parameterLoaderProvider.ParameterLoader(
-			toMimeTypeParameter.SourceType,
-			toMimeTypeParameter.Source,
-		)
-		if loaderErr != nil {
-			return nil, loaderErr
-		}
-
-		val, valErr := parameterLoader.LoadStringValue()
-		if valErr != nil {
-			return nil, valErr
-		}
-
-		quality = val
-	} else {
-		return nil, errors.New("failed to retrieve \"quality\" parameter")
-	}
-
-	return &operations.ImageConvertOperation{
-		Name: o.Name,
-		Params: &operations.ImageConvertOperationParams{
-			ToMimeType: toMimeType,
-			Quality:    quality,
-		},
-	}, nil
-}
-
-func (o *Operation) newS3UploadOperation(
-	ctx Context,
-) (*operations.S3UploadOperation, error) {
-	parameterLoaderProvider, providerErr := ctx.ParameterLoaderProvider()
-	if providerErr != nil {
-		return nil, providerErr
-	}
-
-	var accessKeyId = ""
-	if accessKeyIdParameter, ok := o.Params["accessKeyId"]; ok {
-		parameterLoader, loaderErr := parameterLoaderProvider.ParameterLoader(
-			accessKeyIdParameter.SourceType,
-			accessKeyIdParameter.Source,
-		)
-		if loaderErr != nil {
-			return nil, loaderErr
-		}
-
-		val, valErr := parameterLoader.LoadStringValue()
-		if valErr != nil {
-			return nil, valErr
-		}
-
-		accessKeyId = val
-	} else {
-		return nil, errors.New("failed to retrieve \"accessKeyId\" parameter")
-	}
-
-	var secretAccessKey = ""
-	if secretAccessKeyParameter, ok := o.Params["secretAccessKey"]; ok {
-		parameterLoader, loaderErr := parameterLoaderProvider.ParameterLoader(
-			secretAccessKeyParameter.SourceType,
-			secretAccessKeyParameter.Source,
-		)
-		if loaderErr != nil {
-			return nil, loaderErr
-		}
-
-		val, valErr := parameterLoader.LoadStringValue()
-		if valErr != nil {
-			return nil, valErr
-		}
-
-		secretAccessKey = val
-	} else {
-		return nil, errors.New("failed to retrieve \"secretAccessKey\" parameter")
-	}
-
-	var sessionToken = ""
-	if sessionTokenParameter, ok := o.Params["sessionToken"]; ok {
-		parameterLoader, loaderErr := parameterLoaderProvider.ParameterLoader(
-			sessionTokenParameter.SourceType,
-			sessionTokenParameter.Source,
-		)
-		if loaderErr != nil {
-			return nil, loaderErr
-		}
-
-		val, valErr := parameterLoader.LoadStringValue()
-		if valErr != nil {
-			return nil, valErr
-		}
-
-		sessionToken = val
-	}
-
-	var endpoint = ""
-	if endpointParameter, ok := o.Params["endpoint"]; ok {
-		parameterLoader, loaderErr := parameterLoaderProvider.ParameterLoader(
-			endpointParameter.SourceType,
-			endpointParameter.Source,
-		)
-		if loaderErr != nil {
-			return nil, loaderErr
-		}
-
-		val, valErr := parameterLoader.LoadStringValue()
-		if valErr != nil {
-			return nil, valErr
-		}
-
-		endpoint = val
-	} else {
-		return nil, errors.New("failed to retrieve \"endpoint\" parameter")
-	}
-
-	var region = ""
-	if regionParameter, ok := o.Params["region"]; ok {
-		parameterLoader, loaderErr := parameterLoaderProvider.ParameterLoader(
-			regionParameter.SourceType,
-			regionParameter.Source,
-		)
-		if loaderErr != nil {
-			return nil, loaderErr
-		}
-
-		val, valErr := parameterLoader.LoadStringValue()
-		if valErr != nil {
-			return nil, valErr
-		}
-
-		region = val
-	} else {
-		return nil, errors.New("failed to retrieve \"region\" parameter")
-	}
-
-	var bucket = ""
-	if bucketParameter, ok := o.Params["bucket"]; ok {
-		parameterLoader, loaderErr := parameterLoaderProvider.ParameterLoader(
-			bucketParameter.SourceType,
-			bucketParameter.Source,
-		)
-		if loaderErr != nil {
-			return nil, loaderErr
-		}
-
-		val, valErr := parameterLoader.LoadStringValue()
-		if valErr != nil {
-			return nil, valErr
-		}
-
-		bucket = val
-	} else {
-		return nil, errors.New("failed to retrieve \"bucket\" parameter")
-	}
-
-	return &operations.S3UploadOperation{
-		Name: o.Name,
-		Params: &operations.S3UploadOperationParams{
-			AccessKeyId:     accessKeyId,
-			SecretAccessKey: secretAccessKey,
-			SessionToken:    sessionToken,
-			Endpoint:        endpoint,
-			Region:          region,
-			Bucket:          bucket,
-		},
-	}, nil
-}
-
-func (o *Operation) newS3UploadV2Operation(
-	ctx Context,
-) (*operations.S3UploadV2Operation, error) {
-	parameterLoaderProvider, providerErr := ctx.ParameterLoaderProvider()
-	if providerErr != nil {
-		return nil, providerErr
-	}
-
-	var accessKeyId = ""
-	if accessKeyIdParameter, ok := o.Params["accessKeyId"]; ok {
-		parameterLoader, loaderErr := parameterLoaderProvider.ParameterLoader(
-			accessKeyIdParameter.SourceType,
-			accessKeyIdParameter.Source,
-		)
-		if loaderErr != nil {
-			return nil, loaderErr
-		}
-
-		val, valErr := parameterLoader.LoadStringValue()
-		if valErr != nil {
-			return nil, valErr
-		}
-
-		accessKeyId = val
-	} else {
-		return nil, errors.New("failed to retrieve \"accessKeyId\" parameter")
-	}
-
-	var secretAccessKey = ""
-	if secretAccessKeyParameter, ok := o.Params["secretAccessKey"]; ok {
-		parameterLoader, loaderErr := parameterLoaderProvider.ParameterLoader(
-			secretAccessKeyParameter.SourceType,
-			secretAccessKeyParameter.Source,
-		)
-		if loaderErr != nil {
-			return nil, loaderErr
-		}
-
-		val, valErr := parameterLoader.LoadStringValue()
-		if valErr != nil {
-			return nil, valErr
-		}
-
-		secretAccessKey = val
-	} else {
-		return nil, errors.New("failed to retrieve \"secretAccessKey\" parameter")
-	}
-
-	var sessionToken = ""
-	if sessionTokenParameter, ok := o.Params["sessionToken"]; ok {
-		parameterLoader, loaderErr := parameterLoaderProvider.ParameterLoader(
-			sessionTokenParameter.SourceType,
-			sessionTokenParameter.Source,
-		)
-		if loaderErr != nil {
-			return nil, loaderErr
-		}
-
-		val, valErr := parameterLoader.LoadStringValue()
-		if valErr != nil {
-			return nil, valErr
-		}
-
-		sessionToken = val
-	}
-
-	var endpoint = ""
-	if endpointParameter, ok := o.Params["endpoint"]; ok {
-		parameterLoader, loaderErr := parameterLoaderProvider.ParameterLoader(
-			endpointParameter.SourceType,
-			endpointParameter.Source,
-		)
-		if loaderErr != nil {
-			return nil, loaderErr
-		}
-
-		val, valErr := parameterLoader.LoadStringValue()
-		if valErr != nil {
-			return nil, valErr
-		}
-
-		endpoint = val
-	} else {
-		return nil, errors.New("failed to retrieve \"endpoint\" parameter")
-	}
-
-	var region = ""
-	if regionParameter, ok := o.Params["region"]; ok {
-		parameterLoader, loaderErr := parameterLoaderProvider.ParameterLoader(
-			regionParameter.SourceType,
-			regionParameter.Source,
-		)
-		if loaderErr != nil {
-			return nil, loaderErr
-		}
-
-		val, valErr := parameterLoader.LoadStringValue()
-		if valErr != nil {
-			return nil, valErr
-		}
-
-		region = val
-	} else {
-		return nil, errors.New("failed to retrieve \"region\" parameter")
-	}
-
-	var bucket = ""
-	if bucketParameter, ok := o.Params["bucket"]; ok {
-		parameterLoader, loaderErr := parameterLoaderProvider.ParameterLoader(
-			bucketParameter.SourceType,
-			bucketParameter.Source,
-		)
-		if loaderErr != nil {
-			return nil, loaderErr
-		}
-
-		val, valErr := parameterLoader.LoadStringValue()
-		if valErr != nil {
-			return nil, valErr
-		}
-
-		bucket = val
-	} else {
-		return nil, errors.New("failed to retrieve \"bucket\" parameter")
-	}
-
-	return &operations.S3UploadV2Operation{
-		Params: &operations.S3UploadV2OperationParams{
-			AccessKeyId:     accessKeyId,
-			SecretAccessKey: secretAccessKey,
-			SessionToken:    sessionToken,
-			Endpoint:        endpoint,
-			Region:          region,
-			Bucket:          bucket,
-		},
-	}, nil
-}
-
-func (o *Operation) newFilesystemInputReadOperation(
-	ctx Context,
-) (*operations.FilesystemInputReadOperation, error) {
-	parameterLoaderProvider, providerErr := ctx.ParameterLoaderProvider()
-	if providerErr != nil {
-		return nil, providerErr
-	}
-
-	var target string
-	if targetParameter, ok := o.Params["target"]; ok {
-		parameterLoader, loaderErr := parameterLoaderProvider.ParameterLoader(
-			targetParameter.SourceType,
-			targetParameter.Source,
-		)
-		if loaderErr != nil {
-			return nil, loaderErr
-		}
-
-		val, valErr := parameterLoader.LoadStringValue()
-		if valErr != nil {
-			return nil, valErr
-		}
-
-		target = val
-	} else {
-		return nil, errors.New("failed to retrieve \"target\" parameter")
-	}
-
-	return &operations.FilesystemInputReadOperation{
-		Name: o.Name,
-		Params: &operations.FilesystemInputReadOperationParams{
-			Target: target,
-		},
-	}, nil
-}
-
-func (o *Operation) newFilesystemInputWriteOperation(
-	ctx Context,
-) (*operations.FilesystemInputWriteOperation, error) {
-	parameterLoaderProvider, providerErr := ctx.ParameterLoaderProvider()
-	if providerErr != nil {
-		return nil, providerErr
-	}
-
-	var destination string
-	if destinationParameter, ok := o.Params["destination"]; ok {
-		parameterLoader, loaderErr := parameterLoaderProvider.ParameterLoader(
-			destinationParameter.SourceType,
-			destinationParameter.Source,
-		)
-		if loaderErr != nil {
-			return nil, loaderErr
-		}
-
-		val, valErr := parameterLoader.LoadStringValue()
-		if valErr != nil {
-			return nil, valErr
-		}
-
-		destination = val
-	} else {
-		return nil, errors.New("failed to retrieve \"destination\" parameter")
-	}
-
-	var useOriginalFilename bool
-	if destinationParameter, ok := o.Params["useOriginalFilename"]; ok {
-		parameterLoader, loaderErr := parameterLoaderProvider.ParameterLoader(
-			destinationParameter.SourceType,
-			destinationParameter.Source,
-		)
-		if loaderErr != nil {
-			return nil, loaderErr
-		}
-
-		val, valErr := parameterLoader.LoadBoolValue()
-		if valErr != nil {
-			return nil, valErr
-		}
-
-		useOriginalFilename = val
-	} else {
-		return nil, errors.New("failed to retrieve \"useOriginalFilename\" parameter")
-	}
-
-	return &operations.FilesystemInputWriteOperation{
-		Name: o.Name,
-		Params: &operations.FilesystemInputWriteOperationParams{
-			Destination:         destination,
-			UseOriginalFilename: useOriginalFilename,
-		},
-	}, nil
-}
-
-func (o *Operation) newFilesystemInputRemoveOperation() (*operations.FilesystemInputRemoveOperation, error) {
-	return &operations.FilesystemInputRemoveOperation{
-		Name:   o.Name,
-		Params: &operations.FilesystemInputRemoveOperationParams{},
-	}, nil
-}
-
-func (o *Operation) newCommandExecOperation(ctx Context) (*operations.CommandExecOperation, error) {
-	parameterLoaderProvider, providerErr := ctx.ParameterLoaderProvider()
-	if providerErr != nil {
-		return nil, providerErr
-	}
-
-	var commandName string
-	if commandNameParameter, ok := o.Params["commandName"]; ok {
-		parameterLoader, loaderErr := parameterLoaderProvider.ParameterLoader(
-			commandNameParameter.SourceType,
-			commandNameParameter.Source,
-		)
-		if loaderErr != nil {
-			return nil, loaderErr
-		}
-
-		val, valErr := parameterLoader.LoadStringValue()
-		if valErr != nil {
-			return nil, valErr
-		}
-
-		commandName = val
-	} else {
-		return nil, errors.New("failed to retrieve \"commandName\" parameter")
-	}
-
-	var commandArgs []string
-	if commandArgsParameter, ok := o.Params["commandArgs"]; ok {
-		parameterLoader, loaderErr := parameterLoaderProvider.ParameterLoader(
-			commandArgsParameter.SourceType,
-			commandArgsParameter.Source,
-		)
-		if loaderErr != nil {
-			return nil, loaderErr
-		}
-
-		val, valErr := parameterLoader.LoadStringArrayValue()
-		if valErr != nil {
-			return nil, valErr
-		}
-
-		commandArgs = val
-	} else {
-		return nil, errors.New("failed to retrieve \"commandArgs\" parameter")
-	}
-
-	var outputFileDestination string
-	if outputFileDestinationParameter, ok := o.Params["outputFileDestination"]; ok {
-		parameterLoader, loaderErr := parameterLoaderProvider.ParameterLoader(
-			outputFileDestinationParameter.SourceType,
-			outputFileDestinationParameter.Source,
-		)
-		if loaderErr != nil {
-			return nil, loaderErr
-		}
-
-		val, valErr := parameterLoader.LoadStringValue()
-		if valErr != nil {
-			return nil, valErr
-		}
-
-		outputFileDestination = val
-	} else {
-		return nil, errors.New("failed to retrieve \"outputFileDestination\" parameter")
-	}
-
-	var allowParallelExecution bool = false
-	if allowParallelExecutionParameter, ok := o.Params["allowParallelExecution"]; ok {
-		parameterLoader, loaderErr := parameterLoaderProvider.ParameterLoader(
-			allowParallelExecutionParameter.SourceType,
-			allowParallelExecutionParameter.Source,
-		)
-		if loaderErr != nil {
-			return nil, loaderErr
-		}
-
-		val, valErr := parameterLoader.LoadBoolValue()
-		if valErr != nil {
-			return nil, valErr
-		}
-
-		allowParallelExecution = val
-	}
-
-	return &operations.CommandExecOperation{
-		Name: o.Name,
-		Params: &operations.CommandExecOperationParams{
-			CommandName:            commandName,
-			CommandArgs:            commandArgs,
-			OutputFileDestination:  outputFileDestination,
-			AllowParallelExecution: allowParallelExecution,
-		},
-	}, nil
 }
