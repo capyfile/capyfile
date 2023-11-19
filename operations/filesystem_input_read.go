@@ -50,10 +50,6 @@ func (o *FilesystemInputReadOperation) Handle(
 		}
 
 		pf := files.NewProcessableFile(f)
-		// Here we need this to be true, so Capyfile won't remove the file when it's time
-		// to free up some space/resources. Though this looks like something that should be
-		// configurable.
-		pf.PreserveOriginalFile = true
 
 		if notificationCh != nil {
 			notificationCh <- o.notificationBuilder().Finished("file read finished", &pf)

@@ -8,6 +8,12 @@ import (
 	"path/filepath"
 )
 
+const (
+	cleanupPolicyNone   = 0
+	cleanupPolicyKeep   = 1
+	cleanupPolicyRemove = 2
+)
+
 // ProcessableFile The file that can be processed by the operations.
 type ProcessableFile struct {
 	NanoID string
@@ -19,13 +25,18 @@ type ProcessableFile struct {
 	// OperationMetadata The metadata related to a specific operation.
 	OperationMetadata map[string]interface{}
 
-	mime *mimetype.MIME
-
-	// PreserveOriginalFile Whether the original file should be stored along with the processed one.
-	PreserveOriginalFile bool
+	// PreserveOriginalProcessableFile Whether the original file should be stored along with the processed one.
+	PreserveOriginalProcessableFile bool
 	// OriginalProcessableFile Sometimes we might need to preserve the original unmodified file
 	// to store it along with the modified (processed file, like resized image) file.
 	OriginalProcessableFile *ProcessableFile
+
+	mime *mimetype.MIME
+
+	// The thing with this parameter is that it should be set only once.
+	// We should be careful with it because we don't want to remove the files
+	// that has no clear indication of whether they should be removed or not.
+	cleanupPolicy int
 }
 
 func NewProcessableFile(file afero.File) ProcessableFile {
@@ -41,7 +52,7 @@ func NewProcessableFile(file afero.File) ProcessableFile {
 // ReplaceFile Replaces the file associated with the processable file.
 // Here it also updates everything that is related to it, the things like MIME type.
 func (f *ProcessableFile) ReplaceFile(file afero.File) {
-	if f.PreserveOriginalFile {
+	if f.PreserveOriginalProcessableFile {
 		if f.OriginalProcessableFile != nil {
 			_ = f.FreeResources()
 		} else {
@@ -60,6 +71,22 @@ func (f *ProcessableFile) ReplaceFile(file afero.File) {
 	f.mime = nil
 }
 
+func (f *ProcessableFile) KeepOnFreeResources() {
+	if f.cleanupPolicy != cleanupPolicyNone {
+		return
+	}
+
+	f.cleanupPolicy = cleanupPolicyKeep
+}
+
+func (f *ProcessableFile) RemoveOnFreeResources() {
+	if f.cleanupPolicy != cleanupPolicyNone {
+		return
+	}
+
+	f.cleanupPolicy = cleanupPolicyRemove
+}
+
 func (f *ProcessableFile) Mime() (*mimetype.MIME, error) {
 	err := f.loadMime()
 	if err != nil {
@@ -69,25 +96,19 @@ func (f *ProcessableFile) Mime() (*mimetype.MIME, error) {
 	return f.mime, nil
 }
 
-func (f *ProcessableFile) loadMime() error {
+func (f *ProcessableFile) loadMime() (err error) {
 	if f.mime != nil {
 		return nil
 	}
 
-	stat, err := f.File.Stat()
-	if err != nil {
+	file, fileOpenErr := capyfs.Filesystem.Open(f.File.Name())
+	if fileOpenErr != nil {
 		return err
 	}
 
-	b := make([]byte, stat.Size())
-	_, err = f.File.ReadAt(b, 0)
-	if err != nil {
-		return err
-	}
+	f.mime, err = mimetype.DetectReader(file)
 
-	f.mime = mimetype.Detect(b)
-
-	return nil
+	return err
 }
 
 func (f *ProcessableFile) FreeResources() error {
@@ -96,7 +117,11 @@ func (f *ProcessableFile) FreeResources() error {
 		return err
 	}
 
-	return f.Remove()
+	if f.cleanupPolicy == cleanupPolicyRemove {
+		return f.Remove()
+	}
+
+	return nil
 }
 
 func (f *ProcessableFile) Remove() error {

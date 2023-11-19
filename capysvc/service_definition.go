@@ -185,6 +185,11 @@ func (p *Processor) initOperations(ctx Context) error {
 		if op.TargetFiles == "" {
 			op.TargetFiles = OperationTargetFilesWithoutErrors
 		}
+		// If the cleanup policy is not set, we set it to "keep_files" by default so
+		// the handler will keep the files produced by the operation.
+		if op.CleanupPolicy == "" {
+			op.CleanupPolicy = OperationCleanupPolicyKeepFiles
+		}
 
 		op.handlerLock = &sync.Mutex{}
 		op.inLock = &sync.Mutex{}
@@ -222,10 +227,26 @@ const (
 	OperationTargetFilesWithErrors    = "with_errors"
 )
 
+const (
+	OperationCleanupPolicyKeepFiles   = "keep_files"
+	OperationCleanupPolicyRemoveFiles = "remove_files"
+)
+
 type Operation struct {
-	Name        string                          `json:"name" yaml:"name"`
-	TargetFiles string                          `json:"targetFiles" yaml:"targetFiles"`
-	Params      map[string]parameters.Parameter `json:"params" yaml:"params"`
+	Name   string                          `json:"name" yaml:"name"`
+	Params map[string]parameters.Parameter `json:"params" yaml:"params"`
+	// TargetFiles is the parameter that defines which files should be handled by the operation.
+	// The possible values are:
+	//   - without_errors - only the input files without errors (default)
+	//   - with_errors - only the input files with errors
+	//   - all - all the input files
+	TargetFiles string `json:"targetFiles" yaml:"targetFiles"`
+	// CleanupPolicy is the parameter that defines what should be done with the files that
+	// this operation has produced when it's time to perform the cleanup to free the resources.
+	// The possible values are:
+	//   - keep_files - keep the files (default)
+	//   - remove_files - remove the files
+	CleanupPolicy string `json:"cleanupPolicy" yaml:"cleanupPolicy"`
 
 	inLock *sync.Mutex
 	in     []files.ProcessableFile
@@ -327,6 +348,21 @@ func (o *Operation) handleAndPassOutput(
 		// so we can just send an error to the channel and continue.
 		if errorCh != nil {
 			errorCh <- operations.NewOperationInputError(o.Name, targetIn, opHandlerErr)
+		}
+	}
+
+	// Here we need to set the cleanup policy for the files processed by the operation.
+	// Keep in mind that the policy will actually be set for the files that does
+	// not have it already set.
+	for i := range opHandlerOut {
+		pf := &opHandlerOut[i]
+		switch o.CleanupPolicy {
+		case OperationCleanupPolicyKeepFiles:
+			pf.KeepOnFreeResources()
+			break
+		case OperationCleanupPolicyRemoveFiles:
+			pf.RemoveOnFreeResources()
+			break
 		}
 	}
 
