@@ -67,8 +67,6 @@ func NewCommandExecOperation(
 		}
 
 		outputFileDestination = val
-	} else {
-		return nil, errors.New("failed to retrieve \"outputFileDestination\" parameter")
 	}
 
 	var allowParallelExecution bool = false

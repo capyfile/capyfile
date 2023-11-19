@@ -79,17 +79,21 @@ func (o *CommandExecOperation) Handle(
 		// First we want to render all the templates (command name and args) that we need
 		// to execute the command.
 
-		tmplData := templateData{
-			AbsolutePath: pf.FileAbsolutePath(),
-			Filename:     pf.Filename(),
-			Basename:     pf.FileBasename(),
-			Extension:    pf.FileExtension(),
-		}
-		if pf.OriginalProcessableFile != nil {
-			tmplData.OriginalAbsolutePath = pf.OriginalProcessableFile.FileAbsolutePath()
-			tmplData.OriginalFilename = pf.OriginalProcessableFile.Filename()
-			tmplData.OriginalBasename = pf.OriginalProcessableFile.FileBasename()
-			tmplData.OriginalExtension = pf.OriginalProcessableFile.FileExtension()
+		var tmplData templateData
+
+		if pf != nil {
+			tmplData = templateData{
+				AbsolutePath: pf.FileAbsolutePath(),
+				Filename:     pf.Filename(),
+				Basename:     pf.FileBasename(),
+				Extension:    pf.FileExtension(),
+			}
+			if pf.OriginalProcessableFile != nil {
+				tmplData.OriginalAbsolutePath = pf.OriginalProcessableFile.FileAbsolutePath()
+				tmplData.OriginalFilename = pf.OriginalProcessableFile.Filename()
+				tmplData.OriginalBasename = pf.OriginalProcessableFile.FileBasename()
+				tmplData.OriginalExtension = pf.OriginalProcessableFile.FileExtension()
+			}
 		}
 
 		cmdName, cmdNameErr := o.renderTemplate(
@@ -101,7 +105,9 @@ func (o *CommandExecOperation) Handle(
 			notificationCh,
 		)
 		if cmdNameErr != nil {
-			outHolder.AppendToOut(pf)
+			if pf != nil {
+				outHolder.AppendToOut(pf)
+			}
 
 			return
 		}
@@ -117,7 +123,9 @@ func (o *CommandExecOperation) Handle(
 				notificationCh,
 			)
 			if cmdArgErr != nil {
-				outHolder.AppendToOut(pf)
+				if pf != nil {
+					outHolder.AppendToOut(pf)
+				}
 
 				return
 			}
@@ -129,27 +137,40 @@ func (o *CommandExecOperation) Handle(
 
 		output, execErr := o.CommandExecutor.Execute(cmdName, cmdArgs...)
 		if execErr != nil {
-			pf.SetFileProcessingError(
-				NewCommandExecutionError(execErr),
-			)
-
 			if errorCh != nil {
 				errorCh <- o.errorBuilder().Error(execErr)
 				errorCh <- o.errorBuilder().Error(
 					errors.New(string(output)))
 			}
-			if notificationCh != nil {
-				notificationCh <- o.notificationBuilder().Failed(
-					"command execution has failed", pf, execErr)
-			}
 
-			outHolder.AppendToOut(pf)
+			if pf != nil {
+				pf.SetFileProcessingError(
+					NewCommandExecutionError(execErr),
+				)
+
+				if notificationCh != nil {
+					notificationCh <- o.notificationBuilder().Failed(
+						"command execution has failed", pf, execErr)
+				}
+
+				outHolder.AppendToOut(pf)
+			}
 
 			return
 		}
 
-		// If the command has finished successfully, we need to render the output file destination
-		// template and create a processable file from it.
+		// We should consider the case when the command does not produce any output file.
+		// In such case we just add the input file to the output if any.
+		if o.Params.OutputFileDestination == "" {
+			if pf != nil {
+				outHolder.AppendToOut(pf)
+			}
+
+			return
+		}
+
+		// If we expect some output from the command, we need to render the output file
+		// destination template and create a processable file from it.
 
 		outputFile, outputFileErr := o.renderTemplate(
 			"output file destination",
@@ -160,31 +181,41 @@ func (o *CommandExecOperation) Handle(
 			notificationCh,
 		)
 		if outputFileErr != nil {
-			outHolder.AppendToOut(pf)
+			if pf != nil {
+				outHolder.AppendToOut(pf)
+			}
 
 			return
 		}
 
 		file, fileOpenErr := capyfs.Filesystem.Open(outputFile)
 		if fileOpenErr != nil {
-			pf.SetFileProcessingError(
-				NewFileIsUnreadableError(fileOpenErr),
-			)
-
 			if errorCh != nil {
 				errorCh <- o.errorBuilder().Error(fileOpenErr)
 			}
-			if notificationCh != nil {
-				notificationCh <- o.notificationBuilder().Failed(
-					"can not open the command output file", pf, fileOpenErr)
-			}
 
-			outHolder.AppendToOut(pf)
+			if pf != nil {
+				pf.SetFileProcessingError(
+					NewFileIsUnreadableError(fileOpenErr),
+				)
+
+				if notificationCh != nil {
+					notificationCh <- o.notificationBuilder().Failed(
+						"can not open the command output file", pf, fileOpenErr)
+				}
+
+				outHolder.AppendToOut(pf)
+			}
 
 			return
 		}
 
-		pf.ReplaceFile(file)
+		if pf != nil {
+			pf.ReplaceFile(file)
+		} else {
+			newPf := files.NewProcessableFile(file)
+			pf = &newPf
+		}
 
 		if notificationCh != nil {
 			notificationCh <- o.notificationBuilder().Finished("command execution has finished", pf)
@@ -193,14 +224,19 @@ func (o *CommandExecOperation) Handle(
 		outHolder.AppendToOut(pf)
 	}
 
-	for i := range in {
+	if len(in) == 0 {
 		wg.Add(1)
+		execFunc(nil)
+	} else {
+		for i := range in {
+			wg.Add(1)
 
-		pf := &in[i]
-		if o.Params.AllowParallelExecution {
-			go execFunc(pf)
-		} else {
-			execFunc(pf)
+			pf := &in[i]
+			if o.Params.AllowParallelExecution {
+				go execFunc(pf)
+			} else {
+				execFunc(pf)
+			}
 		}
 	}
 
@@ -219,19 +255,21 @@ func (o *CommandExecOperation) renderTemplate(
 ) (string, error) {
 	parsedTmpl, tmplParseErr := template.New(tmplName).Parse(tmpl)
 	if tmplParseErr != nil {
-		pf.SetFileProcessingError(
-			NewCommandTemplateCanNotBeRenderedError(tmplParseErr),
-		)
-
 		if errorCh != nil {
 			errorCh <- o.errorBuilder().Error(tmplParseErr)
 		}
-		if notificationCh != nil {
-			notificationCh <- o.notificationBuilder().Failed(
-				fmt.Sprintf("%s template can not be parsed. Template: %s", tmplName, tmpl),
-				pf,
-				tmplParseErr,
+
+		if pf != nil {
+			pf.SetFileProcessingError(
+				NewCommandTemplateCanNotBeRenderedError(tmplParseErr),
 			)
+			if notificationCh != nil {
+				notificationCh <- o.notificationBuilder().Failed(
+					fmt.Sprintf("%s template can not be parsed. Template: %s", tmplName, tmpl),
+					pf,
+					tmplParseErr,
+				)
+			}
 		}
 
 		return "", tmplParseErr
@@ -240,19 +278,21 @@ func (o *CommandExecOperation) renderTemplate(
 	var buf bytes.Buffer
 	tmplExecErr := parsedTmpl.Execute(&buf, tmplData)
 	if tmplExecErr != nil {
-		pf.SetFileProcessingError(
-			NewCommandTemplateCanNotBeRenderedError(tmplExecErr),
-		)
-
 		if errorCh != nil {
 			errorCh <- o.errorBuilder().Error(tmplExecErr)
 		}
-		if notificationCh != nil {
-			notificationCh <- o.notificationBuilder().Failed(
-				fmt.Sprintf("%s template can not be rendered. Template: %s", tmplName, tmpl),
-				pf,
-				tmplExecErr,
+
+		if pf != nil {
+			pf.SetFileProcessingError(
+				NewCommandTemplateCanNotBeRenderedError(tmplExecErr),
 			)
+			if notificationCh != nil {
+				notificationCh <- o.notificationBuilder().Failed(
+					fmt.Sprintf("%s template can not be rendered. Template: %s", tmplName, tmpl),
+					pf,
+					tmplExecErr,
+				)
+			}
 		}
 
 		return "", tmplExecErr
