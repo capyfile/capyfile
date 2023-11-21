@@ -325,6 +325,19 @@ files.
 
 ## Development
 
+Capyfile is an open source project so everyone is welcomed to contribute.
+
+### How to create a new operation
+
+There are few things you need to remember:
+* Operation should return error only if it is a critical error that does not allow the operation
+  to function properly. For example, incorrect configuration, missing dependencies, etc.
+* The processable files should not disappear unless you remove the file associated with 
+  it. Use `pf.ReplaceFile()` method if the file was modified by the operation. This way
+  Capyfile can track this change and do proper cleanup if necessary.
+
+### How to run the development environment
+
 What we have so far is a basic dev environment running on Docker.
 
 For the development purposes, we have a docker-compose file with all necessary dependencies 
