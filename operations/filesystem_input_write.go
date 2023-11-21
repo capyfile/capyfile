@@ -3,6 +3,7 @@ package operations
 import (
 	"capyfile/capyfs"
 	"capyfile/files"
+	"github.com/spf13/afero"
 	"path/filepath"
 	"sync"
 )
@@ -47,22 +48,6 @@ func (o *FilesystemInputWriteOperation) Handle(
 				notificationCh <- o.notificationBuilder().Started("file write started", pf)
 			}
 
-			_, fsErr := pf.File.Seek(0, 0)
-			if fsErr != nil {
-				pf.SetFileProcessingError(
-					NewFileReadOffsetCanNotBeSetError(fsErr),
-				)
-
-				if errorCh != nil {
-					errorCh <- o.operationError(fsErr, pf)
-				}
-				if notificationCh != nil {
-					notificationCh <- o.notificationBuilder().Failed("can not set read offset for the file", pf, fsErr)
-				}
-
-				return
-			}
-
 			var base string
 			if o.Params.UseOriginalFilename {
 				base = filepath.Base(pf.OriginalFilename())
@@ -77,14 +62,43 @@ func (o *FilesystemInputWriteOperation) Handle(
 			}
 			destFilename := filepath.Join(o.Params.Destination, base)
 
-			writeErr := capyfs.FilesystemUtils.WriteReader(destFilename, pf.File)
+			file, fileOpenErr := capyfs.Filesystem.Open(pf.Name())
+			if fileOpenErr != nil {
+				pf.SetFileProcessingError(
+					NewFileCanNotBeOpenedError(fileOpenErr),
+				)
+
+				if errorCh != nil {
+					errorCh <- o.errorBuilder().ProcessableFileError(pf, fileOpenErr)
+				}
+				if notificationCh != nil {
+					notificationCh <- o.notificationBuilder().Failed(
+						"file can not be opened", pf, fileOpenErr)
+				}
+
+				return
+			}
+			defer func(file afero.File) {
+				closeErr := file.Close()
+				if closeErr != nil {
+					if errorCh != nil {
+						errorCh <- o.errorBuilder().ProcessableFileError(pf, fileOpenErr)
+					}
+					if notificationCh != nil {
+						notificationCh <- o.notificationBuilder().Failed(
+							"file can not be opened", pf, fileOpenErr)
+					}
+				}
+			}(file)
+
+			writeErr := capyfs.FilesystemUtils.WriteReader(destFilename, file)
 			if writeErr != nil {
 				pf.SetFileProcessingError(
 					NewFileInputIsUnwritableError(writeErr),
 				)
 
 				if errorCh != nil {
-					errorCh <- o.operationError(writeErr, pf)
+					errorCh <- o.errorBuilder().ProcessableFileError(pf, writeErr)
 				}
 				if notificationCh != nil {
 					notificationCh <- o.notificationBuilder().Failed("file write failed with error", pf, writeErr)
@@ -110,10 +124,8 @@ func (o *FilesystemInputWriteOperation) notificationBuilder() *OperationNotifica
 	}
 }
 
-func (o *FilesystemInputWriteOperation) operationError(err error, pf *files.ProcessableFile) OperationError {
-	return OperationError{
+func (o *FilesystemInputWriteOperation) errorBuilder() *OperationErrorBuilder {
+	return &OperationErrorBuilder{
 		OperationName: o.Name,
-		In:            []files.ProcessableFile{*pf},
-		Err:           err,
 	}
 }

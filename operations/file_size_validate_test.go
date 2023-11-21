@@ -4,7 +4,6 @@ import (
 	"capyfile/capyfs"
 	"capyfile/files"
 	"golang.org/x/exp/slices"
-	"os"
 	"testing"
 )
 
@@ -15,9 +14,13 @@ func TestFileSizeValidateOperation_HandleFileOfAllowedMaxSize(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	fileCloseErr := file.Close()
+	if fileCloseErr != nil {
+		t.Fatal(fileCloseErr)
+	}
 
 	in := []files.ProcessableFile{
-		{File: file},
+		files.NewProcessableFile(file.Name()),
 	}
 
 	operation := &FileSizeValidateOperation{
@@ -49,9 +52,13 @@ func TestFileSizeValidateOperation_HandleFileOfAllowedMinSize(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	fileCloseErr := file.Close()
+	if fileCloseErr != nil {
+		t.Fatal(fileCloseErr)
+	}
 
 	in := []files.ProcessableFile{
-		{File: file},
+		files.NewProcessableFile(file.Name()),
 	}
 
 	operation := &FileSizeValidateOperation{
@@ -83,14 +90,23 @@ func TestFileSizeValidateOperation_HandleFilesOfAllowedSize(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	file1KbCloseErr := file1Kb.Close()
+	if file1KbCloseErr != nil {
+		t.Fatal(file1KbCloseErr)
+	}
+
 	file2Kb, err := capyfs.Filesystem.Open("testdata/file_2kb.bin")
 	if err != nil {
 		t.Fatal(err)
 	}
+	file2KbCloseErr := file2Kb.Close()
+	if file2KbCloseErr != nil {
+		t.Fatal(file2KbCloseErr)
+	}
 
 	in := []files.ProcessableFile{
-		{File: file1Kb},
-		{File: file2Kb},
+		files.NewProcessableFile(file1Kb.Name()),
+		files.NewProcessableFile(file2Kb.Name()),
 	}
 
 	operation := &FileSizeValidateOperation{
@@ -125,9 +141,13 @@ func TestFileSizeValidateOperation_HandleFileOfNotAllowedSize(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	fileCloseErr := file.Close()
+	if fileCloseErr != nil {
+		t.Fatal(fileCloseErr)
+	}
 
 	in := []files.ProcessableFile{
-		{File: file},
+		files.NewProcessableFile(file.Name()),
 	}
 
 	operation := &FileSizeValidateOperation{
@@ -166,9 +186,13 @@ func TestFileSizeValidateOperation_HandleFileOfNotAllowedMinSize(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	fileCloseErr := file.Close()
+	if fileCloseErr != nil {
+		t.Fatal(fileCloseErr)
+	}
 
 	in := []files.ProcessableFile{
-		{File: file},
+		files.NewProcessableFile(file.Name()),
 	}
 
 	operation := &FileSizeValidateOperation{
@@ -207,14 +231,23 @@ func TestFileSizeValidateOperation_HandleFilesOfNotAllowedSize(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	file1KbCloseErr := file1Kb.Close()
+	if file1KbCloseErr != nil {
+		t.Fatal(file1KbCloseErr)
+	}
+
 	file2Kb, err := capyfs.Filesystem.Open("testdata/file_2kb.bin")
 	if err != nil {
 		t.Fatal(err)
 	}
+	file2KbCloseErr := file2Kb.Close()
+	if file2KbCloseErr != nil {
+		t.Fatal(file2KbCloseErr)
+	}
 
 	in := []files.ProcessableFile{
-		{File: file1Kb},
-		{File: file2Kb},
+		files.NewProcessableFile(file1Kb.Name()),
+		files.NewProcessableFile(file2Kb.Name()),
 	}
 
 	operation := &FileSizeValidateOperation{
@@ -233,7 +266,7 @@ func TestFileSizeValidateOperation_HandleFilesOfNotAllowedSize(t *testing.T) {
 	}
 
 	processableFile1KbIdx := slices.IndexFunc(out, func(pf files.ProcessableFile) bool {
-		return pf.File.Name() == file1Kb.Name()
+		return pf.Name() == file1Kb.Name()
 	})
 	processableFile1Kb := out[processableFile1KbIdx]
 	if processableFile1Kb.FileProcessingError == nil {
@@ -248,7 +281,7 @@ func TestFileSizeValidateOperation_HandleFilesOfNotAllowedSize(t *testing.T) {
 	}
 
 	processableFile2KbIdx := slices.IndexFunc(out, func(pf files.ProcessableFile) bool {
-		return pf.File.Name() == file2Kb.Name()
+		return pf.Name() == file2Kb.Name()
 	})
 	processableFile2Kb := out[processableFile2KbIdx]
 	if processableFile2Kb.FileProcessingError == nil {
@@ -264,18 +297,29 @@ func TestFileSizeValidateOperation_HandleFilesOfNotAllowedSize(t *testing.T) {
 }
 
 func TestFileSizeValidateOperation_HandleFilesOfAllowedAndNotAllowedSizes(t *testing.T) {
-	osFile1Kb, err := os.Open("testdata/file_1kb.bin")
+	capyfs.InitCopyOnWriteFilesystem()
+
+	file1Kb, err := capyfs.Filesystem.Open("testdata/file_1kb.bin")
 	if err != nil {
 		t.Fatal(err)
 	}
-	osFile5Kb, err := os.Open("testdata/file_5kb.bin")
+	file1KbCloseErr := file1Kb.Close()
+	if file1KbCloseErr != nil {
+		t.Fatal(file1KbCloseErr)
+	}
+
+	file5Kb, err := capyfs.Filesystem.Open("testdata/file_5kb.bin")
 	if err != nil {
 		t.Fatal(err)
+	}
+	file5KbCloseErr := file5Kb.Close()
+	if file5KbCloseErr != nil {
+		t.Fatal(file5KbCloseErr)
 	}
 
 	in := []files.ProcessableFile{
-		{File: osFile1Kb},
-		{File: osFile5Kb},
+		files.NewProcessableFile(file1Kb.Name()),
+		files.NewProcessableFile(file5Kb.Name()),
 	}
 
 	operation := &FileSizeValidateOperation{
@@ -293,7 +337,7 @@ func TestFileSizeValidateOperation_HandleFilesOfAllowedAndNotAllowedSizes(t *tes
 	}
 
 	processableFile1KbIdx := slices.IndexFunc(out, func(pf files.ProcessableFile) bool {
-		return pf.File.Name() == osFile1Kb.Name()
+		return pf.Name() == file1Kb.Name()
 	})
 	processableFile1Kb := out[processableFile1KbIdx]
 	if processableFile1Kb.FileProcessingError != nil {
@@ -301,7 +345,7 @@ func TestFileSizeValidateOperation_HandleFilesOfAllowedAndNotAllowedSizes(t *tes
 	}
 
 	processableFile5KbIdx := slices.IndexFunc(out, func(pf files.ProcessableFile) bool {
-		return pf.File.Name() == osFile5Kb.Name()
+		return pf.Name() == file5Kb.Name()
 	})
 	processableFile5Kb := out[processableFile5KbIdx]
 	if processableFile5Kb.FileProcessingError == nil {

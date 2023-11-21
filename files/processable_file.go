@@ -4,7 +4,6 @@ import (
 	"capyfile/capyfs"
 	"github.com/gabriel-vasile/mimetype"
 	gonanoid "github.com/matoous/go-nanoid/v2"
-	"github.com/spf13/afero"
 	"path/filepath"
 )
 
@@ -18,7 +17,6 @@ const (
 type ProcessableFile struct {
 	NanoID string
 
-	File                afero.File
 	FileProcessingError FileProcessingError
 
 	Metadata *ProcessableFileMetadata
@@ -31,27 +29,28 @@ type ProcessableFile struct {
 	// to store it along with the modified (processed file, like resized image) file.
 	OriginalProcessableFile *ProcessableFile
 
+	name string
 	mime *mimetype.MIME
-
 	// The thing with this parameter is that it should be set only once.
 	// We should be careful with it because we don't want to remove the files
 	// that has no clear indication of whether they should be removed or not.
 	cleanupPolicy int
 }
 
-func NewProcessableFile(file afero.File) ProcessableFile {
+func NewProcessableFile(name string) ProcessableFile {
 	return ProcessableFile{
+		name:   name,
 		NanoID: gonanoid.Must(),
-		File:   file,
 		Metadata: &ProcessableFileMetadata{
-			OriginalFilename: file.Name(),
+			OriginalFilename: name,
 		},
+		PreserveOriginalProcessableFile: true,
 	}
 }
 
 // ReplaceFile Replaces the file associated with the processable file.
 // Here it also updates everything that is related to it, the things like MIME type.
-func (f *ProcessableFile) ReplaceFile(file afero.File) {
+func (f *ProcessableFile) ReplaceFile(name string) {
 	if f.PreserveOriginalProcessableFile {
 		if f.OriginalProcessableFile != nil {
 			_ = f.FreeResources()
@@ -59,7 +58,7 @@ func (f *ProcessableFile) ReplaceFile(file afero.File) {
 			// If we want to preserve original file and there are no original file associated
 			// with this instance, we can consider this instance as the original file.
 			f.OriginalProcessableFile = &ProcessableFile{
-				File: f.File,
+				name: f.name,
 				mime: f.mime,
 			}
 		}
@@ -67,7 +66,7 @@ func (f *ProcessableFile) ReplaceFile(file afero.File) {
 		_ = f.FreeResources()
 	}
 
-	f.File = file
+	f.name = name
 	f.mime = nil
 }
 
@@ -101,7 +100,7 @@ func (f *ProcessableFile) loadMime() (err error) {
 		return nil
 	}
 
-	file, fileOpenErr := capyfs.Filesystem.Open(f.File.Name())
+	file, fileOpenErr := capyfs.Filesystem.Open(f.name)
 	if fileOpenErr != nil {
 		return err
 	}
@@ -112,11 +111,6 @@ func (f *ProcessableFile) loadMime() (err error) {
 }
 
 func (f *ProcessableFile) FreeResources() error {
-	err := f.File.Close()
-	if err != nil {
-		return err
-	}
-
 	if f.cleanupPolicy == cleanupPolicyRemove {
 		return f.Remove()
 	}
@@ -125,7 +119,7 @@ func (f *ProcessableFile) FreeResources() error {
 }
 
 func (f *ProcessableFile) Remove() error {
-	return capyfs.FilesystemUtils.Remove(f.File.Name())
+	return capyfs.FilesystemUtils.Remove(f.name)
 }
 
 func (f *ProcessableFile) SetFileProcessingError(fileProcessingError FileProcessingError) {
@@ -147,12 +141,16 @@ func (f *ProcessableFile) GeneratedFilename() string {
 	return f.NanoID + f.mime.Extension()
 }
 
-func (f *ProcessableFile) Filename() string {
-	return filepath.Base(f.File.Name())
+func (f *ProcessableFile) Name() string {
+	return f.name
 }
 
-func (f *ProcessableFile) FileAbsolutePath() string {
-	return f.File.Name()
+func (f *ProcessableFile) Filename() string {
+	return filepath.Base(f.name)
+}
+
+func (f *ProcessableFile) FileAbsolutePath() (string, error) {
+	return filepath.Abs(f.name)
 }
 
 // FileBasename The basename of the file (filename without extension).
@@ -162,7 +160,7 @@ func (f *ProcessableFile) FileBasename() string {
 
 // FileExtension The extension of the generated file.
 func (f *ProcessableFile) FileExtension() string {
-	return filepath.Ext(f.File.Name())
+	return filepath.Ext(f.name)
 }
 
 func (f *ProcessableFile) OriginalFilename() string {

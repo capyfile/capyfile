@@ -50,7 +50,7 @@ func TestFileTimeValidateOperation_Handle(t *testing.T) {
 				},
 			},
 			in: []files.ProcessableFile{
-				files.NewProcessableFile(file1KbBin),
+				files.NewProcessableFile(file1KbBin.Name()),
 			},
 			outAssert: func(t *testing.T, out []files.ProcessableFile) {
 				if len(out) != 1 {
@@ -83,7 +83,7 @@ func TestFileTimeValidateOperation_Handle(t *testing.T) {
 				},
 			},
 			in: []files.ProcessableFile{
-				files.NewProcessableFile(file1KbBin),
+				files.NewProcessableFile(file1KbBin.Name()),
 			},
 			outAssert: func(t *testing.T, out []files.ProcessableFile) {
 				if len(out) != 1 {
@@ -116,7 +116,7 @@ func TestFileTimeValidateOperation_Handle(t *testing.T) {
 				},
 			},
 			in: []files.ProcessableFile{
-				files.NewProcessableFile(file1KbBin),
+				files.NewProcessableFile(file1KbBin.Name()),
 			},
 			outAssert: func(t *testing.T, out []files.ProcessableFile) {
 				if len(out) != 1 {
@@ -149,7 +149,7 @@ func TestFileTimeValidateOperation_Handle(t *testing.T) {
 				},
 			},
 			in: []files.ProcessableFile{
-				files.NewProcessableFile(file1KbBin),
+				files.NewProcessableFile(file1KbBin.Name()),
 			},
 			outAssert: func(t *testing.T, out []files.ProcessableFile) {
 				if len(out) != 1 {
@@ -182,7 +182,7 @@ func TestFileTimeValidateOperation_Handle(t *testing.T) {
 				},
 			},
 			in: []files.ProcessableFile{
-				files.NewProcessableFile(file1KbBin),
+				files.NewProcessableFile(file1KbBin.Name()),
 			},
 			outAssert: func(t *testing.T, out []files.ProcessableFile) {
 				if len(out) != 1 {
@@ -215,7 +215,7 @@ func TestFileTimeValidateOperation_Handle(t *testing.T) {
 				},
 			},
 			in: []files.ProcessableFile{
-				files.NewProcessableFile(file1KbBin),
+				files.NewProcessableFile(file1KbBin.Name()),
 			},
 			outAssert: func(t *testing.T, out []files.ProcessableFile) {
 				if len(out) != 1 {
@@ -254,7 +254,7 @@ func TestFileTimeValidateOperation_Handle(t *testing.T) {
 				},
 			},
 			in: []files.ProcessableFile{
-				files.NewProcessableFile(file1KbBin),
+				files.NewProcessableFile(file1KbBin.Name()),
 			},
 			outAssert: func(t *testing.T, out []files.ProcessableFile) {
 				if len(out) != 1 {

@@ -46,7 +46,7 @@ func TestHttpOctetStreamInputReadOperation_Handle(t *testing.T) {
 		t.Fatal(originalFileStatErr)
 	}
 
-	uploadedFileStat, uploadedFileStatErr := out[0].File.Stat()
+	uploadedFileStat, uploadedFileStatErr := capyfs.Filesystem.Stat(out[0].Name())
 	if uploadedFileStatErr != nil {
 		t.Fatal(uploadedFileStatErr)
 	}

@@ -117,3 +117,59 @@ func (e *FileReadOffsetCanNotBeSetError) Code() string {
 func (e *FileReadOffsetCanNotBeSetError) Error() string {
 	return "file read offset can not be set"
 }
+
+const ErrorCodeFileCanNotBeOpened = "FILE_CAN_NOT_BE_OPENED"
+
+func NewFileCanNotBeOpenedError(origErr error) *FileCanNotBeOpenedError {
+	return &FileCanNotBeOpenedError{
+		Data: &FileCanNotBeOpenedErrorData{
+			OrigErr: origErr,
+		},
+	}
+}
+
+type FileCanNotBeOpenedError struct {
+	files.FileProcessingError
+
+	Data *FileCanNotBeOpenedErrorData
+}
+
+type FileCanNotBeOpenedErrorData struct {
+	OrigErr error
+}
+
+func (e *FileCanNotBeOpenedError) Code() string {
+	return ErrorCodeFileCanNotBeOpened
+}
+
+func (e *FileCanNotBeOpenedError) Error() string {
+	return "file can not be opened"
+}
+
+const ErrorCodeFileCanNotBeClosed = "FILE_CAN_NOT_BE_CLOSED"
+
+func NewFileCanNotBeClosedError(origErr error) *FileCanNotBeClosedError {
+	return &FileCanNotBeClosedError{
+		Data: &FileCanNotBeClosedErrorData{
+			OrigErr: origErr,
+		},
+	}
+}
+
+type FileCanNotBeClosedError struct {
+	files.FileProcessingError
+
+	Data *FileCanNotBeClosedErrorData
+}
+
+type FileCanNotBeClosedErrorData struct {
+	OrigErr error
+}
+
+func (e *FileCanNotBeClosedError) Code() string {
+	return ErrorCodeFileCanNotBeClosed
+}
+
+func (e *FileCanNotBeClosedError) Error() string {
+	return "file can not be closed"
+}

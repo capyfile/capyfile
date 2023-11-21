@@ -25,18 +25,8 @@ func TestFilesystemInputRemoveOperation_HandleFileRemove(t *testing.T) {
 	}
 
 	in := []files.ProcessableFile{
-		{
-			File: file1,
-			Metadata: &files.ProcessableFileMetadata{
-				OriginalFilename: "file1.txt",
-			},
-		},
-		{
-			File: file2,
-			Metadata: &files.ProcessableFileMetadata{
-				OriginalFilename: "file2.txt",
-			},
-		},
+		files.NewProcessableFile(file1.Name()),
+		files.NewProcessableFile(file2.Name()),
 	}
 
 	operation := &FilesystemInputRemoveOperation{}

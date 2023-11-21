@@ -5,6 +5,7 @@ processors:
   - name: upload
     operations:
       - name: filesystem_input_read
+        cleanupPolicy: keep_files
         params:
           target:
             sourceType: env_var
@@ -23,7 +24,9 @@ processors:
               - image/png
               - image/heif
       - name: exiftool_metadata_cleanup
+        cleanupPolicy: remove_files
       - name: image_convert
+        cleanupPolicy: remove_files
         params:
           toMimeType:
             sourceType: value

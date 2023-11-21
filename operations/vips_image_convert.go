@@ -123,17 +123,54 @@ func (o *ImageConvertOperation) Handle(
 				return
 			}
 
-			fileStat, statErr := pf.File.Stat()
-			if statErr != nil {
+			//fileStat, statErr := pf.File.Stat()
+			//if statErr != nil {
+			//	pf.SetFileProcessingError(
+			//		NewFileInfoCanNotBeRetrievedError(statErr),
+			//	)
+			//
+			//	if errorCh != nil {
+			//		errorCh <- o.errorBuilder().ProcessableFileError(pf, statErr)
+			//	}
+			//	if notificationCh != nil {
+			//		notificationCh <- o.notificationBuilder().Failed("can not retrieve the file info", pf, statErr)
+			//	}
+			//
+			//	outHolder.AppendToOut(pf)
+			//
+			//	return
+			//}
+			//
+			//oldImg := make([]byte, fileStat.Size())
+			//_, readErr := pf.File.ReadAt(oldImg, 0)
+			//if readErr != nil {
+			//	pf.SetFileProcessingError(
+			//		NewFileIsUnreadableError(readErr),
+			//	)
+			//
+			//	if errorCh != nil {
+			//		errorCh <- o.errorBuilder().ProcessableFileError(pf, readErr)
+			//	}
+			//	if notificationCh != nil {
+			//		notificationCh <- o.notificationBuilder().Failed("can not read the file", pf, readErr)
+			//	}
+			//
+			//	outHolder.AppendToOut(pf)
+			//
+			//	return
+			//}
+			//
+			oldImage, oldImageReadErr := bimg.Read(pf.Name())
+			if oldImageReadErr != nil {
 				pf.SetFileProcessingError(
-					NewFileInfoCanNotBeRetrievedError(statErr),
+					NewFileIsUnreadableError(oldImageReadErr),
 				)
 
 				if errorCh != nil {
-					errorCh <- o.errorBuilder().ProcessableFileError(pf, statErr)
+					errorCh <- o.errorBuilder().ProcessableFileError(pf, oldImageReadErr)
 				}
 				if notificationCh != nil {
-					notificationCh <- o.notificationBuilder().Failed("can not retrieve the file info", pf, statErr)
+					notificationCh <- o.notificationBuilder().Failed("can not read the file", pf, oldImageReadErr)
 				}
 
 				outHolder.AppendToOut(pf)
@@ -141,26 +178,7 @@ func (o *ImageConvertOperation) Handle(
 				return
 			}
 
-			oldImg := make([]byte, fileStat.Size())
-			_, readErr := pf.File.ReadAt(oldImg, 0)
-			if readErr != nil {
-				pf.SetFileProcessingError(
-					NewFileIsUnreadableError(readErr),
-				)
-
-				if errorCh != nil {
-					errorCh <- o.errorBuilder().ProcessableFileError(pf, readErr)
-				}
-				if notificationCh != nil {
-					notificationCh <- o.notificationBuilder().Failed("can not read the file", pf, readErr)
-				}
-
-				outHolder.AppendToOut(pf)
-
-				return
-			}
-
-			newImg, imageProcessErr := bimg.NewImage(oldImg).Process(
+			newImg, imageProcessErr := bimg.NewImage(oldImage).Process(
 				bimg.Options{
 					Type:    imageType,
 					Quality: o.Params.bimgNumericQuality(),
@@ -183,7 +201,7 @@ func (o *ImageConvertOperation) Handle(
 				return
 			}
 
-			newFile, writeErr := capyutils.WriteBytesToTempFileAndLeaveOpen(newImg)
+			newFile, writeErr := capyutils.WriteBytesToAppTmpDirectory(newImg)
 			if writeErr != nil {
 				pf.SetFileProcessingError(
 					NewFileIsUnwritableError(writeErr),
@@ -205,7 +223,7 @@ func (o *ImageConvertOperation) Handle(
 				notificationCh <- o.notificationBuilder().Finished("image conversion has finished", pf)
 			}
 
-			pf.ReplaceFile(newFile)
+			pf.ReplaceFile(newFile.Name())
 
 			outHolder.AppendToOut(pf)
 		}(pf)

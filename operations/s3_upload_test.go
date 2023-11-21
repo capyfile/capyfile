@@ -1,6 +1,7 @@
 package operations
 
 import (
+	"bytes"
 	"capyfile/capyfs"
 	"capyfile/files"
 	"context"
@@ -32,7 +33,7 @@ func TestS3UploadOperation_HandleSuccessfulFilesUpload(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	processableFile := files.NewProcessableFile(file)
+	processableFile := files.NewProcessableFile(file.Name())
 	in := []files.ProcessableFile{
 		processableFile,
 	}
@@ -58,8 +59,20 @@ func TestS3UploadOperation_HandleSuccessfulFilesUpload(t *testing.T) {
 					t.Fatalf("expected key to be %s, got %v", processableFile.GeneratedFilename(), params.Bucket)
 				}
 
-				if params.Body != processableFile.File {
-					t.Fatalf("expected body to be %v, got %v", processableFile.File, params.Body)
+				bodyContent := make([]byte, 5120)
+				_, readErr := params.Body.Read(bodyContent)
+				if readErr != nil {
+					t.Fatal(readErr)
+				}
+
+				fileContent := make([]byte, 5120)
+				_, readErr = file.Read(fileContent)
+				if readErr != nil {
+					t.Fatal(readErr)
+				}
+
+				if bytes.Compare(bodyContent, fileContent) != 0 {
+					t.Fatalf("expected body content to be equal to file content")
 				}
 
 				return &s3.PutObjectOutput{}, nil
@@ -108,7 +121,7 @@ func TestS3UploadOperation_HandleFailedFilesUpload(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	processableFile := files.NewProcessableFile(file)
+	processableFile := files.NewProcessableFile(file.Name())
 	in := []files.ProcessableFile{
 		processableFile,
 	}
@@ -134,8 +147,20 @@ func TestS3UploadOperation_HandleFailedFilesUpload(t *testing.T) {
 					t.Fatalf("expected key to be %s, got %v", processableFile.GeneratedFilename(), params.Bucket)
 				}
 
-				if params.Body != processableFile.File {
-					t.Fatalf("expected body to be %v, got %v", processableFile.File, params.Body)
+				bodyContent := make([]byte, 5120)
+				_, readErr := params.Body.Read(bodyContent)
+				if readErr != nil {
+					t.Fatal(readErr)
+				}
+
+				fileContent := make([]byte, 5120)
+				_, readErr = file.Read(fileContent)
+				if readErr != nil {
+					t.Fatal(readErr)
+				}
+
+				if bytes.Compare(bodyContent, fileContent) != 0 {
+					t.Fatalf("expected body content to be equal to file content")
 				}
 
 				return &s3.PutObjectOutput{}, errors.New("whatever error")

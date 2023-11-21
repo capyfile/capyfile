@@ -1,6 +1,7 @@
 package operations
 
 import (
+	"capyfile/capyfs"
 	"capyfile/files"
 	"golang.org/x/exp/slices"
 	"os"
@@ -8,13 +9,15 @@ import (
 )
 
 func TestFileTypeValidateOperation_HandleFileOfAllowedType(t *testing.T) {
-	osFile, err := os.Open("testdata/image_512x512.jpg")
+	capyfs.InitCopyOnWriteFilesystem()
+
+	file, err := capyfs.Filesystem.Open("testdata/image_512x512.jpg")
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	in := []files.ProcessableFile{
-		{File: osFile},
+		files.NewProcessableFile(file.Name()),
 	}
 
 	operation := &FileTypeValidateOperation{
@@ -40,6 +43,8 @@ func TestFileTypeValidateOperation_HandleFileOfAllowedType(t *testing.T) {
 }
 
 func TestFileTypeValidateOperation_HandleFilesOfAllowedType(t *testing.T) {
+	capyfs.InitCopyOnWriteFilesystem()
+
 	osFileImageJpg, err := os.Open("testdata/image_512x512.jpg")
 	if err != nil {
 		t.Fatal(err)
@@ -50,8 +55,8 @@ func TestFileTypeValidateOperation_HandleFilesOfAllowedType(t *testing.T) {
 	}
 
 	in := []files.ProcessableFile{
-		{File: osFileImageJpg},
-		{File: osFileImagePng},
+		files.NewProcessableFile(osFileImageJpg.Name()),
+		files.NewProcessableFile(osFileImagePng.Name()),
 	}
 
 	operation := &FileTypeValidateOperation{
@@ -79,13 +84,15 @@ func TestFileTypeValidateOperation_HandleFilesOfAllowedType(t *testing.T) {
 }
 
 func TestFileTypeValidateOperation_HandleFileOfNotAllowedType(t *testing.T) {
+	capyfs.InitCopyOnWriteFilesystem()
+
 	osFileImagePng, err := os.Open("testdata/image_512x512.png")
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	in := []files.ProcessableFile{
-		{File: osFileImagePng},
+		files.NewProcessableFile(osFileImagePng.Name()),
 	}
 
 	operation := &FileTypeValidateOperation{
@@ -118,6 +125,8 @@ func TestFileTypeValidateOperation_HandleFileOfNotAllowedType(t *testing.T) {
 }
 
 func TestFileTypeValidateOperation_HandleFilesOfNotAllowedType(t *testing.T) {
+	capyfs.InitCopyOnWriteFilesystem()
+
 	osFileImageJpg, err := os.Open("testdata/image_512x512.jpg")
 	if err != nil {
 		t.Fatal(err)
@@ -128,8 +137,8 @@ func TestFileTypeValidateOperation_HandleFilesOfNotAllowedType(t *testing.T) {
 	}
 
 	in := []files.ProcessableFile{
-		{File: osFileImageJpg},
-		{File: osFileImagePng},
+		files.NewProcessableFile(osFileImageJpg.Name()),
+		files.NewProcessableFile(osFileImagePng.Name()),
 	}
 
 	operation := &FileTypeValidateOperation{
@@ -162,6 +171,8 @@ func TestFileTypeValidateOperation_HandleFilesOfNotAllowedType(t *testing.T) {
 }
 
 func TestFileTypeValidateOperation_HandleFilesOfAllowedAndNotAllowedTypes(t *testing.T) {
+	capyfs.InitCopyOnWriteFilesystem()
+
 	osFileImageJpg, err := os.Open("testdata/image_512x512.jpg")
 	if err != nil {
 		t.Fatal(err)
@@ -172,8 +183,8 @@ func TestFileTypeValidateOperation_HandleFilesOfAllowedAndNotAllowedTypes(t *tes
 	}
 
 	in := []files.ProcessableFile{
-		{File: osFileImageJpg},
-		{File: osFileImageWebp},
+		files.NewProcessableFile(osFileImageJpg.Name()),
+		files.NewProcessableFile(osFileImageWebp.Name()),
 	}
 
 	operation := &FileTypeValidateOperation{
@@ -191,7 +202,7 @@ func TestFileTypeValidateOperation_HandleFilesOfAllowedAndNotAllowedTypes(t *tes
 	}
 
 	processableFileImageJpgIdx := slices.IndexFunc(out, func(pf files.ProcessableFile) bool {
-		return pf.File.Name() == osFileImageJpg.Name()
+		return pf.Name() == osFileImageJpg.Name()
 	})
 	processableFileImageJpg := out[processableFileImageJpgIdx]
 	if processableFileImageJpg.FileProcessingError != nil {
@@ -199,7 +210,7 @@ func TestFileTypeValidateOperation_HandleFilesOfAllowedAndNotAllowedTypes(t *tes
 	}
 
 	processableFileImageWebpIdx := slices.IndexFunc(out, func(pf files.ProcessableFile) bool {
-		return pf.File.Name() == osFileImageWebp.Name()
+		return pf.Name() == osFileImageWebp.Name()
 	})
 	processableFileImageWebp := out[processableFileImageWebpIdx]
 	if processableFileImageWebp.FileProcessingError == nil {

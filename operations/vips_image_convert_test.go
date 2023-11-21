@@ -17,7 +17,7 @@ func TestImageConvertOperation_HandlePngToJpgConversion(t *testing.T) {
 	}
 
 	in := []files.ProcessableFile{
-		{File: file},
+		files.NewProcessableFile(file.Name()),
 	}
 
 	operation := &ImageConvertOperation{
@@ -63,7 +63,7 @@ func TestImageConvertOperation_HandlePngToNotAllowedTypeConversion(t *testing.T)
 	}
 
 	in := []files.ProcessableFile{
-		{File: file},
+		files.NewProcessableFile(file.Name()),
 	}
 
 	operation := &ImageConvertOperation{

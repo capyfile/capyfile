@@ -2,6 +2,7 @@ package operations
 
 import (
 	"capyfile/capyerr"
+	"capyfile/capyfs"
 	"capyfile/files"
 	"context"
 	"errors"
@@ -12,6 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/spf13/afero"
 	"net/url"
 	"strings"
 	"sync"
@@ -135,30 +137,41 @@ func (o *S3UploadOperation) Handle(
 				notificationCh <- o.notificationBuilder().Started("S3 file upload has started", pf)
 			}
 
-			// Ensure that we are at the beginning of the file so S3 SDK starts reading it from the beginning.
-			_, fsErr := pf.File.Seek(0, 0)
-			if fsErr != nil {
+			file, fileOpenErr := capyfs.Filesystem.Open(pf.Name())
+			if fileOpenErr != nil {
 				pf.SetFileProcessingError(
-					NewFileReadOffsetCanNotBeSetError(fsErr),
+					NewFileCanNotBeOpenedError(fileOpenErr),
 				)
 
 				if errorCh != nil {
-					errorCh <- o.errorBuilder().ProcessableFileError(pf, fsErr)
+					errorCh <- o.errorBuilder().ProcessableFileError(pf, fileOpenErr)
 				}
 				if notificationCh != nil {
 					notificationCh <- o.notificationBuilder().Failed(
-						"can not to set read offset for the file", pf, fsErr)
+						"file can not be opened", pf, fileOpenErr)
 				}
 
 				outHolder.AppendToOut(pf)
 
 				return
 			}
+			defer func(file afero.File) {
+				closeErr := file.Close()
+				if closeErr != nil {
+					if errorCh != nil {
+						errorCh <- o.errorBuilder().ProcessableFileError(pf, fileOpenErr)
+					}
+					if notificationCh != nil {
+						notificationCh <- o.notificationBuilder().Failed(
+							"file can not be opened", pf, fileOpenErr)
+					}
+				}
+			}(file)
 
 			_, putObjErr := o.PutObjectAPI.PutObjectWithContext(context.TODO(), &s3.PutObjectInput{
 				Bucket: aws.String(o.Params.Bucket),
 				Key:    aws.String(pf.GeneratedFilename()),
-				Body:   pf.File,
+				Body:   file,
 			})
 			if putObjErr != nil {
 				pf.SetFileProcessingError(
@@ -179,11 +192,11 @@ func (o *S3UploadOperation) Handle(
 						}
 					default:
 						if errorCh != nil {
-							errorCh <- o.errorBuilder().ProcessableFileError(pf, fsErr)
+							errorCh <- o.errorBuilder().ProcessableFileError(pf, putObjErr)
 						}
 						if notificationCh != nil {
 							notificationCh <- o.notificationBuilder().Failed(
-								"can not upload the file because the request to S3 storage has failed", pf, fsErr)
+								"can not upload the file because the request to S3 storage has failed", pf, putObjErr)
 						}
 					}
 				}

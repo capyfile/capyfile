@@ -40,7 +40,7 @@ func (o *FilesystemInputReadOperation) Handle(
 	}
 
 	for _, match := range matches {
-		f, fileOpenErr := capyfs.Filesystem.Open(match)
+		file, fileOpenErr := capyfs.Filesystem.Open(match)
 		if fileOpenErr != nil {
 			if errorCh != nil {
 				errorCh <- o.errorBuilder().Error(fileOpenErr)
@@ -49,7 +49,7 @@ func (o *FilesystemInputReadOperation) Handle(
 			continue
 		}
 
-		pf := files.NewProcessableFile(f)
+		pf := files.NewProcessableFile(file.Name())
 
 		if notificationCh != nil {
 			notificationCh <- o.notificationBuilder().Finished("file read finished", &pf)
