@@ -123,43 +123,6 @@ func (o *ImageConvertOperation) Handle(
 				return
 			}
 
-			//fileStat, statErr := pf.File.Stat()
-			//if statErr != nil {
-			//	pf.SetFileProcessingError(
-			//		NewFileInfoCanNotBeRetrievedError(statErr),
-			//	)
-			//
-			//	if errorCh != nil {
-			//		errorCh <- o.errorBuilder().ProcessableFileError(pf, statErr)
-			//	}
-			//	if notificationCh != nil {
-			//		notificationCh <- o.notificationBuilder().Failed("can not retrieve the file info", pf, statErr)
-			//	}
-			//
-			//	outHolder.AppendToOut(pf)
-			//
-			//	return
-			//}
-			//
-			//oldImg := make([]byte, fileStat.Size())
-			//_, readErr := pf.File.ReadAt(oldImg, 0)
-			//if readErr != nil {
-			//	pf.SetFileProcessingError(
-			//		NewFileIsUnreadableError(readErr),
-			//	)
-			//
-			//	if errorCh != nil {
-			//		errorCh <- o.errorBuilder().ProcessableFileError(pf, readErr)
-			//	}
-			//	if notificationCh != nil {
-			//		notificationCh <- o.notificationBuilder().Failed("can not read the file", pf, readErr)
-			//	}
-			//
-			//	outHolder.AppendToOut(pf)
-			//
-			//	return
-			//}
-			//
 			oldImage, oldImageReadErr := bimg.Read(pf.Name())
 			if oldImageReadErr != nil {
 				pf.SetFileProcessingError(
