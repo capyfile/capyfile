@@ -54,6 +54,12 @@ process. The `targetFiles` parameter can have these values:
 * `with_errors` - all files that are passed to the operation that have errors
 * `all` - all files that are passed to the operation
 
+Another operation parameter is `cleanupPolicy` that tells what to do with the files produced 
+by the operation when it's time to clean up the files. The `cleanupPolicy` parameter can have
+these values:
+* `keep_files` (default) - keep the files
+* `remove_files` - remove the files
+
 
 ### 2. Run the file processing pipeline.
 
