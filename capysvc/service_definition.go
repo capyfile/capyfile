@@ -28,7 +28,7 @@ func (s *Service) FindProcessor(processorName string) *Processor {
 }
 
 func (s *Service) RunProcessor(
-	context Context,
+	ctx Context,
 	processorName string,
 	in []files.ProcessableFile,
 ) (out []files.ProcessableFile, err error) {
@@ -37,7 +37,12 @@ func (s *Service) RunProcessor(
 		return out, capyerr.NewProcessorNotFoundError(processorName)
 	}
 
-	return proc.RunOperations(context, in)
+	iniOpsErr := proc.InitOperations(ctx)
+	if iniOpsErr != nil {
+		return out, iniOpsErr
+	}
+
+	return proc.RunOperations(ctx, in)
 }
 
 func (s *Service) RunProcessorConcurrently(
@@ -50,6 +55,11 @@ func (s *Service) RunProcessorConcurrently(
 	proc := s.FindProcessor(processorName)
 	if proc == nil {
 		return out, capyerr.NewProcessorNotFoundError(processorName)
+	}
+
+	iniOpsErr := proc.InitOperations(ctx)
+	if iniOpsErr != nil {
+		return out, iniOpsErr
 	}
 
 	return proc.RunOperationsConcurrently(
@@ -69,11 +79,6 @@ func (p *Processor) RunOperations(
 	ctx Context,
 	in []files.ProcessableFile,
 ) (out []files.ProcessableFile, err error) {
-	iniOpsErr := p.initOperations(ctx)
-	if iniOpsErr != nil {
-		return out, iniOpsErr
-	}
-
 	firstOp, _ := p.firstAndLastOperations()
 	firstOp.enqueueIn(in...)
 	firstOp.incrInCount(len(in))
@@ -100,11 +105,6 @@ func (p *Processor) RunOperationsConcurrently(
 	errorCh chan<- operations.OperationError,
 	notificationCh chan<- operations.OperationNotification,
 ) (out []files.ProcessableFile, err error) {
-	iniOpsErr := p.initOperations(ctx)
-	if iniOpsErr != nil {
-		return out, iniOpsErr
-	}
-
 	firstOp, lastOp := p.firstAndLastOperations()
 
 	firstOp.enqueueIn(in...)
@@ -170,12 +170,20 @@ func (p *Processor) RunOperationsConcurrently(
 	return out, nil
 }
 
-// initOperations initializes the operations before running the pipeline.
+// InitOperations initializes the operations before running the pipeline.
+//
+// Use this method when you run the pipeline first time or when you want to
+// reconfigure the pipeline. But keep in mind that this method is not safe
+// run on the pipeline that is running. You need to stop the pipeline first,
+// or wait until it's completed.
 //
 // What this method does is:
+//   - resets the operations to their initial state
 //   - initializes the operation handlers
 //   - builds the linked list of operations
-func (p *Processor) initOperations(ctx Context) error {
+func (p *Processor) InitOperations(ctx Context) error {
+	p.resetOperations()
+
 	var prevOp *Operation
 	for i := range p.Operations {
 		op := &p.Operations[i]
@@ -191,12 +199,6 @@ func (p *Processor) initOperations(ctx Context) error {
 			op.CleanupPolicy = OperationCleanupPolicyKeepFiles
 		}
 
-		op.handlerLock = &sync.Mutex{}
-		op.inLock = &sync.Mutex{}
-		op.inCntLock = &sync.Mutex{}
-		op.outCntLock = &sync.Mutex{}
-		op.completedLock = &sync.Mutex{}
-
 		opHandlerErr := op.initOperationHandler(ctx)
 		if opHandlerErr != nil {
 			return opHandlerErr
@@ -211,6 +213,29 @@ func (p *Processor) initOperations(ctx Context) error {
 	}
 
 	return nil
+}
+
+func (p *Processor) resetOperations() {
+	for i := range p.Operations {
+		op := &p.Operations[i]
+
+		op.inLock = &sync.Mutex{}
+		op.in = []files.ProcessableFile{}
+		op.inCntLock = &sync.Mutex{}
+		op.InCnt = 0
+
+		op.outCntLock = &sync.Mutex{}
+		op.OutCnt = 0
+
+		op.completedLock = &sync.Mutex{}
+		op.Completed = false
+
+		op.handlerLock = &sync.Mutex{}
+		op.handler = nil
+
+		op.prevOperation = nil
+		op.nextOperation = nil
+	}
 }
 
 func (p *Processor) firstAndLastOperations() (firstOp *Operation, lastOp *Operation) {
