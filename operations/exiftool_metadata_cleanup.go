@@ -57,8 +57,9 @@ func (o *ExiftoolMetadataCleanupOperation) Handle(
 		go func(pf *files.ProcessableFile) {
 			defer wg.Done()
 
+			// todo: do not modify the original file, but create a copy instead.
 			// Right now this is limited to os filesystem.
-			args := []string{"-all:all=", "-overwrite_original", pf.File.Name()}
+			args := []string{"-all:all=", "-overwrite_original", pf.Name()}
 			_, exiftoolErr := exec.Command("exiftool", args...).Output()
 			if exiftoolErr != nil {
 				pf.SetFileProcessingError(

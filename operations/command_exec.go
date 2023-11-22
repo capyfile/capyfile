@@ -82,14 +82,50 @@ func (o *CommandExecOperation) Handle(
 		var tmplData templateData
 
 		if pf != nil {
+			absolutePath, absolutePathErr := pf.FileAbsolutePath()
+			if absolutePathErr != nil {
+				if errorCh != nil {
+					errorCh <- o.errorBuilder().Error(absolutePathErr)
+				}
+
+				if notificationCh != nil {
+					notificationCh <- o.notificationBuilder().Failed(
+						"can not get the absolute path to the file", pf, absolutePathErr)
+				}
+
+				outHolder.AppendToOut(pf)
+
+				return
+			}
+
 			tmplData = templateData{
-				AbsolutePath: pf.FileAbsolutePath(),
-				Filename:     pf.Filename(),
-				Basename:     pf.FileBasename(),
-				Extension:    pf.FileExtension(),
+				AbsolutePath:         absolutePath,
+				Filename:             pf.Filename(),
+				Basename:             pf.FileBasename(),
+				Extension:            pf.FileExtension(),
+				OriginalAbsolutePath: absolutePath,
+				OriginalFilename:     pf.Filename(),
+				OriginalBasename:     pf.FileBasename(),
+				OriginalExtension:    pf.FileExtension(),
 			}
 			if pf.OriginalProcessableFile != nil {
-				tmplData.OriginalAbsolutePath = pf.OriginalProcessableFile.FileAbsolutePath()
+				originalAbsolutePath, originalAbsolutePathErr := pf.OriginalProcessableFile.FileAbsolutePath()
+				if originalAbsolutePathErr != nil {
+					if errorCh != nil {
+						errorCh <- o.errorBuilder().Error(originalAbsolutePathErr)
+					}
+
+					if notificationCh != nil {
+						notificationCh <- o.notificationBuilder().Failed(
+							"can not get the absolute path to the original file", pf, originalAbsolutePathErr)
+					}
+
+					outHolder.AppendToOut(pf)
+
+					return
+				}
+
+				tmplData.OriginalAbsolutePath = originalAbsolutePath
 				tmplData.OriginalFilename = pf.OriginalProcessableFile.Filename()
 				tmplData.OriginalBasename = pf.OriginalProcessableFile.FileBasename()
 				tmplData.OriginalExtension = pf.OriginalProcessableFile.FileExtension()
@@ -211,9 +247,9 @@ func (o *CommandExecOperation) Handle(
 		}
 
 		if pf != nil {
-			pf.ReplaceFile(file)
+			pf.ReplaceFile(file.Name())
 		} else {
-			newPf := files.NewProcessableFile(file)
+			newPf := files.NewProcessableFile(file.Name())
 			pf = &newPf
 		}
 

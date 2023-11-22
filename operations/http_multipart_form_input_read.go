@@ -51,7 +51,7 @@ func (o *HttpMultipartFormInputReadOperation) Handle(
 				continue
 			}
 
-			f, fileWriteErr := capyutils.WriteReaderToTempFileAndLeaveOpen(uploadedFile)
+			file, fileWriteErr := capyutils.WriteReaderToAppTmpDirectory(uploadedFile)
 			if fileWriteErr != nil {
 				if errorCh != nil {
 					errorCh <- o.errorBuilder().Error(fileWriteErr)
@@ -60,7 +60,7 @@ func (o *HttpMultipartFormInputReadOperation) Handle(
 				continue
 			}
 
-			pf := files.NewProcessableFile(f)
+			pf := files.NewProcessableFile(file.Name())
 			pf.Metadata.OriginalFilename = fileHeader.Filename
 
 			if notificationCh != nil {

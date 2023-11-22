@@ -110,8 +110,8 @@ func TestService_RunProcessors(t *testing.T) {
 	}
 
 	in := []files.ProcessableFile{
-		files.NewProcessableFile(imageFile),
-		files.NewProcessableFile(binFile),
+		files.NewProcessableFile(imageFile.Name()),
+		files.NewProcessableFile(binFile.Name()),
 	}
 
 	req, err := http.NewRequest(
@@ -140,7 +140,7 @@ func TestService_RunProcessors(t *testing.T) {
 	}
 
 	imageProcessableFileIdx := slices.IndexFunc(out, func(pf files.ProcessableFile) bool {
-		return pf.File.Name() == imageFile.Name()
+		return pf.Name() == imageFile.Name()
 	})
 	imageProcessableFile := out[imageProcessableFileIdx]
 	if imageProcessableFile.HasFileProcessingError() {
@@ -148,7 +148,7 @@ func TestService_RunProcessors(t *testing.T) {
 	}
 
 	binProcessableFileIdx := slices.IndexFunc(out, func(pf files.ProcessableFile) bool {
-		return pf.File.Name() == binFile.Name()
+		return pf.Name() == binFile.Name()
 	})
 	binProcessableFile := out[binProcessableFileIdx]
 	if !binProcessableFile.HasFileProcessingError() {
@@ -175,8 +175,8 @@ func TestService_RunProcessorsConcurrentlyWithServerContext(t *testing.T) {
 	}
 
 	in := []files.ProcessableFile{
-		files.NewProcessableFile(imageFile),
-		files.NewProcessableFile(binFile),
+		files.NewProcessableFile(imageFile.Name()),
+		files.NewProcessableFile(binFile.Name()),
 	}
 
 	req, err := http.NewRequest(
@@ -208,7 +208,7 @@ func TestService_RunProcessorsConcurrentlyWithServerContext(t *testing.T) {
 	}
 
 	imageProcessableFileIdx := slices.IndexFunc(out, func(pf files.ProcessableFile) bool {
-		return pf.File.Name() == imageFile.Name()
+		return pf.Name() == imageFile.Name()
 	})
 	imageProcessableFile := out[imageProcessableFileIdx]
 	if imageProcessableFile.HasFileProcessingError() {
@@ -216,7 +216,7 @@ func TestService_RunProcessorsConcurrentlyWithServerContext(t *testing.T) {
 	}
 
 	binProcessableFileIdx := slices.IndexFunc(out, func(pf files.ProcessableFile) bool {
-		return pf.File.Name() == binFile.Name()
+		return pf.Name() == binFile.Name()
 	})
 	binProcessableFile := out[binProcessableFileIdx]
 	if !binProcessableFile.HasFileProcessingError() {
@@ -243,8 +243,8 @@ func TestService_RunProcessorsConcurrentlyWithCliContext(t *testing.T) {
 	}
 
 	in := []files.ProcessableFile{
-		files.NewProcessableFile(imageFile),
-		files.NewProcessableFile(binFile),
+		files.NewProcessableFile(imageFile.Name()),
+		files.NewProcessableFile(binFile.Name()),
 	}
 
 	errorCh := make(chan operations.OperationError)
@@ -278,7 +278,7 @@ func TestService_RunProcessorsConcurrentlyWithCliContext(t *testing.T) {
 	}
 
 	imageProcessableFileIdx := slices.IndexFunc(out, func(pf files.ProcessableFile) bool {
-		return pf.File.Name() == imageFile.Name()
+		return pf.Name() == imageFile.Name()
 	})
 	imageProcessableFile := out[imageProcessableFileIdx]
 	if imageProcessableFile.HasFileProcessingError() {
@@ -286,7 +286,7 @@ func TestService_RunProcessorsConcurrentlyWithCliContext(t *testing.T) {
 	}
 
 	binProcessableFileIdx := slices.IndexFunc(out, func(pf files.ProcessableFile) bool {
-		return pf.File.Name() == binFile.Name()
+		return pf.Name() == binFile.Name()
 	})
 	binProcessableFile := out[binProcessableFileIdx]
 	if !binProcessableFile.HasFileProcessingError() {

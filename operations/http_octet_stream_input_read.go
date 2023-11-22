@@ -33,7 +33,7 @@ func (o *HttpOctetStreamInputReadOperation) Handle(
 		return out, nil
 	}
 
-	f, fileWriteErr := capyutils.WriteReaderToTempFileAndLeaveOpen(o.Req.Body)
+	f, fileWriteErr := capyutils.WriteReaderToAppTmpDirectory(o.Req.Body)
 	if fileWriteErr != nil {
 		if errorCh != nil {
 			errorCh <- o.errorBuilder().Error(fileWriteErr)
@@ -42,7 +42,7 @@ func (o *HttpOctetStreamInputReadOperation) Handle(
 		return out, fileWriteErr
 	}
 
-	pf := files.NewProcessableFile(f)
+	pf := files.NewProcessableFile(f.Name())
 
 	if notificationCh != nil {
 		notificationCh <- o.notificationBuilder().Finished("octet-stream file read finished", &pf)

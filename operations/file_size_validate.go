@@ -1,7 +1,9 @@
 package operations
 
 import (
+	"capyfile/capyfs"
 	"capyfile/files"
+	"github.com/spf13/afero"
 	"sync"
 )
 
@@ -44,7 +46,38 @@ func (o *FileSizeValidateOperation) Handle(
 				notificationCh <- o.notificationBuilder().Started("file size validation started", pf)
 			}
 
-			fileStat, statErr := pf.File.Stat()
+			file, fileOpenErr := capyfs.Filesystem.Open(pf.Name())
+			if fileOpenErr != nil {
+				pf.SetFileProcessingError(
+					NewFileCanNotBeOpenedError(fileOpenErr),
+				)
+
+				if errorCh != nil {
+					errorCh <- o.errorBuilder().ProcessableFileError(pf, fileOpenErr)
+				}
+				if notificationCh != nil {
+					notificationCh <- o.notificationBuilder().Failed(
+						"file can not be opened", pf, fileOpenErr)
+				}
+
+				outHolder.AppendToOut(pf)
+
+				return
+			}
+			defer func(file afero.File) {
+				closeErr := file.Close()
+				if closeErr != nil {
+					if errorCh != nil {
+						errorCh <- o.errorBuilder().ProcessableFileError(pf, fileOpenErr)
+					}
+					if notificationCh != nil {
+						notificationCh <- o.notificationBuilder().Failed(
+							"file can not be opened", pf, fileOpenErr)
+					}
+				}
+			}(file)
+
+			fileStat, statErr := file.Stat()
 			if statErr != nil {
 				// This may be related to the specific file, so it makes sense to add a file processing
 				// error to the processable file. We can also return more specific error here, but

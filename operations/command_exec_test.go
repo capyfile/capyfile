@@ -29,7 +29,7 @@ func TestCommandExecOperation_Handle(t *testing.T) {
 	}
 
 	in := []files.ProcessableFile{
-		files.NewProcessableFile(video1File),
+		files.NewProcessableFile(video1File.Name()),
 	}
 
 	operation := &CommandExecOperation{
@@ -57,8 +57,9 @@ func TestCommandExecOperation_Handle(t *testing.T) {
 				if arg[0] != "-i" {
 					t.Fatalf("expected arg[0] to be -i, got %s", arg[0])
 				}
-				if arg[1] != in[0].FileAbsolutePath() {
-					t.Fatalf("expected arg[1] to be %s, got %s", in[0].FileAbsolutePath(), arg[1])
+				absPath, _ := in[0].FileAbsolutePath()
+				if arg[1] != absPath {
+					t.Fatalf("expected arg[1] to be %s, got %s", absPath, arg[1])
 				}
 				if arg[2] != "-c:v" {
 					t.Fatalf("expected arg[2] to be -c:v, got %s", arg[2])
@@ -109,11 +110,12 @@ func TestCommandExecOperation_Handle(t *testing.T) {
 
 	// In addition, we need to check that the new processable file is the output file
 	// that the command produced.
-	if out[0].FileAbsolutePath() != fmt.Sprintf("/tmp/%s.mp4", in[0].FileBasename()) {
+	absPath, _ := out[0].FileAbsolutePath()
+	if absPath != fmt.Sprintf("/tmp/%s.mp4", in[0].FileBasename()) {
 		t.Fatalf(
 			"expected file absolute path to be /tmp/%s.mp4, got %s",
 			in[0].FileBasename(),
-			out[0].FileAbsolutePath(),
+			absPath,
 		)
 	}
 }
@@ -133,7 +135,7 @@ func TestCommandExecOperation_HandleEmptyOutput(t *testing.T) {
 	}
 
 	in := []files.ProcessableFile{
-		files.NewProcessableFile(video1File),
+		files.NewProcessableFile(video1File.Name()),
 	}
 
 	operation := &CommandExecOperation{
@@ -163,8 +165,9 @@ func TestCommandExecOperation_HandleEmptyOutput(t *testing.T) {
 				if arg[1] != "cp" {
 					t.Fatalf("expected arg[1] to be cp, got %s", arg[1])
 				}
-				if arg[2] != in[0].FileAbsolutePath() {
-					t.Fatalf("expected arg[2] to be %s, got %s", in[0].FileAbsolutePath(), arg[2])
+				absPath, _ := in[0].FileAbsolutePath()
+				if arg[2] != absPath {
+					t.Fatalf("expected arg[2] to be %s, got %s", absPath, arg[2])
 				}
 				if arg[3] != "s3://my-bucket" {
 					t.Fatalf("expected arg[3] to be s3://my-bucket, got %s", arg[3])
@@ -198,11 +201,13 @@ func TestCommandExecOperation_HandleEmptyOutput(t *testing.T) {
 
 	// The command has input but no output, so the output file should be the same as
 	// the input file.
-	if out[0].FileAbsolutePath() != in[0].FileAbsolutePath() {
+	outAbsPath, _ := out[0].FileAbsolutePath()
+	inAbsPath, _ := in[0].FileAbsolutePath()
+	if outAbsPath != inAbsPath {
 		t.Fatalf(
 			"expected file absolute path to be %s, got %s",
-			in[0].FileAbsolutePath(),
-			out[0].FileAbsolutePath(),
+			inAbsPath,
+			outAbsPath,
 		)
 	}
 }
@@ -273,10 +278,11 @@ func TestCommandExecOperation_HandleEmptyInput(t *testing.T) {
 
 	// In addition, we need to check that the new processable file is the output file
 	// that the command produced.
-	if out[0].FileAbsolutePath() != "/tmp/archive.zip" {
+	outAbsPath, _ := out[0].FileAbsolutePath()
+	if outAbsPath != "/tmp/archive.zip" {
 		t.Fatalf(
 			"expected file absolute path to be /tmp/archive.zip, got %s",
-			out[0].FileAbsolutePath(),
+			outAbsPath,
 		)
 	}
 }

@@ -44,25 +44,7 @@ func (o *FilesystemInputRemoveOperation) Handle(
 				notificationCh <- o.notificationBuilder().Started("file remove started", pf)
 			}
 
-			closeErr := pf.File.Close()
-			if closeErr != nil {
-				pf.SetFileProcessingError(
-					NewFileInputIsUnwritableError(closeErr),
-				)
-
-				if errorCh != nil {
-					errorCh <- o.errorBuilder().ProcessableFileError(pf, closeErr)
-				}
-				if notificationCh != nil {
-					notificationCh <- o.notificationBuilder().Failed("file close failed with the error", pf, closeErr)
-				}
-
-				outHolder.AppendToOut(pf)
-
-				return
-			}
-
-			removeErr := capyfs.Filesystem.Remove(pf.File.Name())
+			removeErr := capyfs.Filesystem.Remove(pf.Name())
 			if removeErr != nil {
 				pf.SetFileProcessingError(
 					NewFileInputIsUnwritableError(removeErr),

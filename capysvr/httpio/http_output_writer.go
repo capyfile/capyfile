@@ -1,6 +1,7 @@
 package httpio
 
 import (
+	"capyfile/capyfs"
 	"capyfile/capysvc/common"
 	"capyfile/files"
 	"capyfile/operations"
@@ -86,14 +87,14 @@ func WriteOutput(out []files.ProcessableFile, w http.ResponseWriter) error {
 func (dto *ResponseDTO) writeProcessedFile(processableFile *files.ProcessableFile) {
 	if !processableFile.HasFileProcessingError() {
 		var fileURL string
-		if val, ok := processableFile.OperationMetadata[operations.MetadataKeyS3UploadV2FileUrl]; ok {
+		if val, ok := processableFile.OperationMetadata[operations.MetadataKeyS3UploadFileUrl]; ok {
 			fileURL = val.(string)
 		}
 
 		originalFilename := processableFile.OriginalFilename()
 
 		mime, _ := processableFile.Mime()
-		fileInfo, _ := processableFile.File.Stat()
+		fileInfo, _ := capyfs.Filesystem.Stat(processableFile.Name())
 
 		//original := &OriginalFileDTO{}
 

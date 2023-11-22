@@ -54,6 +54,12 @@ process. The `targetFiles` parameter can have these values:
 * `with_errors` - all files that are passed to the operation that have errors
 * `all` - all files that are passed to the operation
 
+Another operation parameter is `cleanupPolicy` that tells what to do with the files produced 
+by the operation when it's time to clean up the files. The `cleanupPolicy` parameter can have
+these values:
+* `keep_files` (default) - keep the files
+* `remove_files` - remove the files
+
 
 ### 2. Run the file processing pipeline.
 
@@ -324,6 +330,19 @@ pipeline.
 files.
 
 ## Development
+
+Capyfile is an open source project so everyone is welcomed to contribute.
+
+### How to create a new operation
+
+There are few things you need to remember:
+* Operation should return error only if it is a critical error that does not allow the operation
+  to function properly. For example, incorrect configuration, missing dependencies, etc.
+* The processable files should not disappear unless you remove the file associated with 
+  it. Use `pf.ReplaceFile()` method if the file was modified by the operation. This way
+  Capyfile can track this change and do proper cleanup if necessary.
+
+### How to run the development environment
 
 What we have so far is a basic dev environment running on Docker.
 

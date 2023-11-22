@@ -15,12 +15,7 @@ func TestFilesystemInputWriteOperation_HandleSingleFileWriteWithOriginalFilename
 	}
 
 	in := []files.ProcessableFile{
-		{
-			File: file,
-			Metadata: &files.ProcessableFileMetadata{
-				OriginalFilename: "image_512x512.png",
-			},
-		},
+		files.NewProcessableFile(file.Name()),
 	}
 
 	operation := &FilesystemInputWriteOperation{
@@ -63,12 +58,7 @@ func TestFilesystemInputWriteOperation_HandleSingleFileWriteWithGeneratedFilenam
 	}
 
 	in := []files.ProcessableFile{
-		{
-			File: file,
-			Metadata: &files.ProcessableFileMetadata{
-				OriginalFilename: "image_512x512.png",
-			},
-		},
+		files.NewProcessableFile(file.Name()),
 	}
 
 	operation := &FilesystemInputWriteOperation{
@@ -114,18 +104,8 @@ func TestFilesystemInputWriteOperation_HandleMultipleFileWrite(t *testing.T) {
 		t.Error(err)
 	}
 	in := []files.ProcessableFile{
-		{
-			File: file1,
-			Metadata: &files.ProcessableFileMetadata{
-				OriginalFilename: "image_512x512.png",
-			},
-		},
-		{
-			File: file2,
-			Metadata: &files.ProcessableFileMetadata{
-				OriginalFilename: "image_512x512.jpg",
-			},
-		},
+		files.NewProcessableFile(file1.Name()),
+		files.NewProcessableFile(file2.Name()),
 	}
 
 	operation := &FilesystemInputWriteOperation{
@@ -151,7 +131,7 @@ func TestFilesystemInputWriteOperation_HandleMultipleFileWrite(t *testing.T) {
 			)
 		}
 
-		exists, err := capyfs.FilesystemUtils.Exists("/tmp/testdata/" + processableFile.OriginalFilename())
+		exists, err := capyfs.FilesystemUtils.Exists("/tmp/testdata/" + processableFile.Filename())
 		if err != nil {
 			t.Error(err)
 		}
