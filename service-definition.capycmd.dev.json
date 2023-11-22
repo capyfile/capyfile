@@ -33,7 +33,13 @@
           }
         },
         {
-          "name": "exiftool_metadata_cleanup"
+          "name": "exiftool_metadata_cleanup",
+          "params": {
+            "overrideOriginalFile": {
+              "sourceType": "value",
+              "source": true
+            }
+          }
         },
         {
           "name": "image_convert",

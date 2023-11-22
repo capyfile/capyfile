@@ -173,3 +173,31 @@ func (e *FileCanNotBeClosedError) Code() string {
 func (e *FileCanNotBeClosedError) Error() string {
 	return "file can not be closed"
 }
+
+const ErrorCodeTmpFileCanNotBeCreated = "TMP_FILE_CAN_NOT_BE_CREATED"
+
+func NewTmpFileCanNotBeCreatedError(origErr error) *TmpFileCanNotBeCreatedError {
+	return &TmpFileCanNotBeCreatedError{
+		Data: &TmpFileCanNotBeCreatedErrorData{
+			OrigErr: origErr,
+		},
+	}
+}
+
+type TmpFileCanNotBeCreatedError struct {
+	files.FileProcessingError
+
+	Data *TmpFileCanNotBeCreatedErrorData
+}
+
+type TmpFileCanNotBeCreatedErrorData struct {
+	OrigErr error
+}
+
+func (e *TmpFileCanNotBeCreatedError) Code() string {
+	return ErrorCodeTmpFileCanNotBeCreated
+}
+
+func (e *TmpFileCanNotBeCreatedError) Error() string {
+	return "tmp file can not be created"
+}

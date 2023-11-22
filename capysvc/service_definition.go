@@ -553,7 +553,11 @@ func (o *Operation) initOperationHandler(ctx Context) error {
 		)
 		break
 	case "exiftool_metadata_cleanup":
-		oh, ohErr = opfactories.NewExiftoolMetadataCleanupOperation(o.Name)
+		oh, ohErr = opfactories.NewExiftoolMetadataCleanupOperation(
+			o.Name,
+			o.Params,
+			parameterLoaderProvider,
+		)
 		break
 	case "image_convert":
 		oh, ohErr = opfactories.NewImageConvertOperation(

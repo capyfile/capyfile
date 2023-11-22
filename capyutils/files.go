@@ -22,6 +22,20 @@ func prepareAppDirectory() error {
 	return nil
 }
 
+func GetAppTmpDirectory() (string, error) {
+	prepErr := prepareAppDirectory()
+	if prepErr != nil {
+		return "", prepErr
+	}
+
+	homedir, uhdErr := os.UserHomeDir()
+	if uhdErr != nil {
+		return "", uhdErr
+	}
+
+	return homedir + "/.capyfile/tmp", nil
+}
+
 func WriteBytesToAppTmpDirectory(b []byte) (afero.File, error) {
 	prepErr := prepareAppDirectory()
 	if prepErr != nil {

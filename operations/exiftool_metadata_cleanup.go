@@ -2,9 +2,12 @@ package operations
 
 import (
 	"capyfile/capyerr"
+	"capyfile/capyutils"
 	"capyfile/files"
 	"errors"
+	gonanoid "github.com/matoous/go-nanoid/v2"
 	"os/exec"
+	"path/filepath"
 	"sync"
 )
 
@@ -24,6 +27,7 @@ func (o *ExiftoolMetadataCleanupOperation) AllowConcurrency() bool {
 }
 
 type ExiftoolMetadataCleanupOperationParams struct {
+	OverwriteOriginalFile bool
 }
 
 func (o *ExiftoolMetadataCleanupOperation) Handle(
@@ -47,6 +51,8 @@ func (o *ExiftoolMetadataCleanupOperation) Handle(
 		)
 	}
 
+	outHolder := newOutputHolder()
+
 	var wg sync.WaitGroup
 
 	for i := range in {
@@ -57,14 +63,45 @@ func (o *ExiftoolMetadataCleanupOperation) Handle(
 		go func(pf *files.ProcessableFile) {
 			defer wg.Done()
 
-			// todo: do not modify the original file, but create a copy instead.
-			// Right now this is limited to os filesystem.
-			args := []string{"-all:all=", "-overwrite_original", pf.Name()}
+			// If this is not empty, then the original file was not overwritten,
+			// and now we assign it with the processable file.
+			var tmpFilename string
+
+			var args []string
+			if o.Params.OverwriteOriginalFile {
+				args = []string{"-all:all=", "-overwrite_original", pf.Name()}
+			} else {
+				tmpDir, tmpDirErr := capyutils.GetAppTmpDirectory()
+				if tmpDirErr != nil {
+					pf.SetFileProcessingError(
+						NewTmpFileCanNotBeCreatedError(tmpDirErr),
+					)
+					outHolder.AppendToOut(pf)
+
+					if errorCh != nil {
+						errorCh <- o.errorBuilder().ProcessableFileError(pf, tmpDirErr)
+					}
+					if notificationCh != nil {
+						notificationCh <- o.notificationBuilder().Failed(
+							"exiftool failed to write the file metadata", pf, tmpDirErr)
+					}
+
+					return
+				}
+				tmpFilename = filepath.Join(tmpDir, gonanoid.Must())
+
+				args = []string{
+					"-all:all=",
+					"-o", tmpFilename,
+					pf.Name(),
+				}
+			}
 			_, exiftoolErr := exec.Command("exiftool", args...).Output()
 			if exiftoolErr != nil {
 				pf.SetFileProcessingError(
 					NewFileMetadataCanNotBeWrittenError(exiftoolErr),
 				)
+				outHolder.AppendToOut(pf)
 
 				if errorCh != nil {
 					errorCh <- o.errorBuilder().ProcessableFileError(pf, exiftoolErr)
@@ -77,6 +114,12 @@ func (o *ExiftoolMetadataCleanupOperation) Handle(
 				return
 			}
 
+			if tmpFilename != "" {
+				pf.ReplaceFile(tmpFilename)
+			}
+
+			outHolder.AppendToOut(pf)
+
 			if notificationCh != nil {
 				notificationCh <- o.notificationBuilder().Finished("file metadata cleanup has finished", pf)
 			}
@@ -85,7 +128,7 @@ func (o *ExiftoolMetadataCleanupOperation) Handle(
 
 	wg.Wait()
 
-	return in, nil
+	return outHolder.Out, nil
 }
 
 func (o *ExiftoolMetadataCleanupOperation) notificationBuilder() *OperationNotificationBuilder {
