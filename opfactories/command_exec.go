@@ -47,8 +47,6 @@ func NewCommandExecOperation(
 		}
 
 		commandArgs = val
-	} else {
-		return nil, errors.New("failed to retrieve \"commandArgs\" parameter")
 	}
 
 	var outputFileDestination string
