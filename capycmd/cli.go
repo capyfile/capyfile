@@ -117,32 +117,25 @@ func (s *Cli) Run(serviceProcessor string) error {
 		return nil
 	}
 
-	close(errorCh)
-	close(notificationCh)
+	defer func() {
+		for _, pf := range out {
+			freeResourcesErr := pf.FreeResources()
+			if freeResourcesErr != nil {
+				printlnErrorMsg(
+					fmt.Sprintf("Failed to free resources for %s: %s", pf.Name(), freeResourcesErr.Error()))
+			}
+		}
+	}()
 
 	fmt.Println()
-	printlnSuccessMsg(
-		fmt.Sprintf("Capyfile processed %d files.", len(out)))
+	printlnSuccessMsg("Completed")
 
-	var success []files.ProcessableFile
 	var failure []files.ProcessableFile
 	for _, pf := range out {
 		if pf.HasFileProcessingError() {
 			failure = append(failure, pf)
-		} else {
-			success = append(success, pf)
 		}
 	}
-
-	if len(success) > 0 {
-		fmt.Println()
-		fmt.Println("Success:")
-		for _, pf := range success {
-			fmt.Println(
-				fmt.Sprintf("    [%s]", pf.OriginalFilename()))
-		}
-	}
-
 	if len(failure) > 0 {
 		fmt.Println()
 		fmt.Println("Failures:")

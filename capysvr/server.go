@@ -133,8 +133,8 @@ func (s *Server) Run() error {
 func Handler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	// What we have so far is /:svc-name/:procedure-name as file uploading
-	// endpoints (e.g. /messenger/avatar, /messenger/attachment).
+	// What we have so far is /:service-name/:processor-name as file uploading
+	// endpoints (e.g. /messenger/avatar, /messenger/attachment, /images/upload).
 	path := strings.Split(
 		strings.TrimLeft(r.URL.Path, "/"),
 		"/")
@@ -293,6 +293,21 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 		)
 		return
 	}
+
+	defer func() {
+		for _, pf := range out {
+			freeResourcesErr := pf.FreeResources()
+			if freeResourcesErr != nil {
+				common.Logger.Error(
+					"failed to free resources for file",
+					slog.String("service", svc.Name),
+					slog.String("processor", proc.Name),
+					slog.String("file", pf.Name()),
+					slog.Any("error", freeResourcesErr),
+				)
+			}
+		}
+	}()
 
 	common.Logger.Info(
 		"input has been processed",
