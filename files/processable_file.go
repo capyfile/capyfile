@@ -38,7 +38,7 @@ type ProcessableFile struct {
 }
 
 func NewProcessableFile(name string) ProcessableFile {
-	return ProcessableFile{
+	pf := ProcessableFile{
 		name:   name,
 		NanoID: gonanoid.Must(),
 		Metadata: &ProcessableFileMetadata{
@@ -46,25 +46,26 @@ func NewProcessableFile(name string) ProcessableFile {
 		},
 		PreserveOriginalProcessableFile: true,
 	}
+
+	// For now, this "preserve original file" stuff is always true.
+	// But if needed, we can make it configurable (probably on processor/operations level).
+	if pf.PreserveOriginalProcessableFile {
+		pf.OriginalProcessableFile = &ProcessableFile{
+			name:   name,
+			NanoID: pf.NanoID,
+			Metadata: &ProcessableFileMetadata{
+				OriginalFilename: name,
+			},
+		}
+	}
+
+	return pf
 }
 
 // ReplaceFile Replaces the file associated with the processable file.
 // Here it also updates everything that is related to it, the things like MIME type.
 func (f *ProcessableFile) ReplaceFile(name string) {
-	if f.PreserveOriginalProcessableFile {
-		if f.OriginalProcessableFile != nil {
-			_ = f.FreeResources()
-		} else {
-			// If we want to preserve original file and there are no original file associated
-			// with this instance, we can consider this instance as the original file.
-			f.OriginalProcessableFile = &ProcessableFile{
-				name: f.name,
-				mime: f.mime,
-			}
-		}
-	} else {
-		_ = f.FreeResources()
-	}
+	_ = f.FreeResources()
 
 	f.name = name
 	f.mime = nil
@@ -112,6 +113,12 @@ func (f *ProcessableFile) loadMime() (err error) {
 }
 
 func (f *ProcessableFile) FreeResources() error {
+	if f.PreserveOriginalProcessableFile {
+		if f.OriginalProcessableFile != nil && f.OriginalProcessableFile.name == f.name {
+			return nil
+		}
+	}
+
 	if f.cleanupPolicy == cleanupPolicyRemove {
 		return f.Remove()
 	}
