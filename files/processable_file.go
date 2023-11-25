@@ -68,6 +68,7 @@ func (f *ProcessableFile) ReplaceFile(name string) {
 
 	f.name = name
 	f.mime = nil
+	f.cleanupPolicy = cleanupPolicyNone
 }
 
 func (f *ProcessableFile) KeepOnFreeResources() {
