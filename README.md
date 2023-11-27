@@ -69,7 +69,12 @@ At this moment you have two options to run the file processing pipeline:
 
 ## Examples
 
-The below you can see a couple of examples of the service definition file.
+The below you can see a couple of examples of the service definition file along with the
+commands to run the file processing pipeline.
+
+If you want to see more detailed examples, please check these articles:
+* [Do whatever you want with your files, and do it quickly](https://dev.to/sky003/do-whatever-you-want-with-your-files-and-do-it-quickly-4od2)
+* [Integrate any command into your file-processing pipeline](https://dev.to/sky003/integrate-any-command-into-your-file-processing-pipeline-3jbh)
 
 ### Log archiver example
 
