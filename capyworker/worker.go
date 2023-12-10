@@ -13,6 +13,7 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 )
 
 type Worker struct {
@@ -132,6 +133,19 @@ func (s *Worker) Run(serviceProcessor string) error {
 			}
 
 			iterations++
+
+			if s.SleepTime > 0 {
+				common.Logger.Info(
+					"sleeping",
+					slog.String("service", serviceName),
+					slog.String("processor", processorName),
+					slog.Int("sleepTime", s.SleepTime),
+				)
+
+				fmt.Printf("sleeping for %d seconds...\n", s.SleepTime)
+
+				time.Sleep(time.Duration(s.SleepTime) * time.Second)
+			}
 		}
 	}
 }
