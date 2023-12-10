@@ -81,7 +81,7 @@ func (p *Processor) RunOperations(
 ) (out []files.ProcessableFile, err error) {
 	firstOp, _ := p.firstAndLastOperations()
 	firstOp.enqueueIn(in...)
-	firstOp.incrInCount(len(in))
+	firstOp.incrInCnt(len(in))
 
 	for i := range p.Operations {
 		op := &p.Operations[i]
@@ -108,7 +108,7 @@ func (p *Processor) RunOperationsConcurrently(
 	firstOp, lastOp := p.firstAndLastOperations()
 
 	firstOp.enqueueIn(in...)
-	firstOp.incrInCount(len(in))
+	firstOp.incrInCnt(len(in))
 
 	outCh := make(chan []files.ProcessableFile)
 
@@ -122,7 +122,7 @@ func (p *Processor) RunOperationsConcurrently(
 						// If what we deal with here is not the first operation, we need to check
 						// whether the previous operation has produced any output. If not, then
 						// the current concurrent operation can be skipped.
-						if op.prevOperation.Completed && op.prevOperation.OutCnt == 0 {
+						if op.prevOperation.Completed && op.prevOperation.OutCnt() == 0 {
 							op.complete()
 							break
 						}
@@ -130,7 +130,7 @@ func (p *Processor) RunOperationsConcurrently(
 						// If the first operation is happened to be concurrent, we need to check
 						// whether there is any input for it. If not, then the current concurrent
 						// operation can be skipped.
-						if op.InCnt == 0 {
+						if op.InCnt() == 0 {
 							op.complete()
 							break
 						}
@@ -221,11 +221,10 @@ func (p *Processor) resetOperations() {
 
 		op.inLock = &sync.Mutex{}
 		op.in = []files.ProcessableFile{}
-		op.inCntLock = &sync.Mutex{}
-		op.InCnt = 0
 
-		op.outCntLock = &sync.Mutex{}
-		op.OutCnt = 0
+		op.inOutCntLock = &sync.Mutex{}
+		op.inCnt = 0
+		op.outCnt = 0
 
 		op.completedLock = &sync.Mutex{}
 		op.Completed = false
@@ -275,19 +274,19 @@ type Operation struct {
 
 	inLock *sync.Mutex
 	in     []files.ProcessableFile
-	// We need this counter to know when the operation is completed.
+
+	inOutCntLock *sync.Mutex
+	// We need inCnt to know when the operation is completed.
 	// Queueing the input is increasing the counter, when the input is processed
 	// we are decreasing the counter. But we can't rely on this when we deal with
 	// the empty input.
-	inCntLock *sync.Mutex
-	InCnt     int
-	// OutCnt is needed for the cases when we want to know whether the operation
+	inCnt int
+	// outCnt is needed for the cases when we want to know whether the operation
 	// produced any output.
 	// For example, if the operation is completed and there is no output, we
 	// should skip any concurrent operations because by their nature they
 	// can't work with empty input.
-	outCntLock *sync.Mutex
-	OutCnt     int
+	outCnt int
 
 	completedLock *sync.Mutex
 	// Whether the operation is completed which means that there is no more input
@@ -353,15 +352,14 @@ func (o *Operation) handleAndPassOutput(
 
 			if o.nextOperation != nil {
 				// If we have the next operation, we need to enqueue the skipped input to it.
-				o.nextOperation.incrInCount(len(skipIn))
+				o.nextOperation.incrInCnt(len(skipIn))
 				o.nextOperation.enqueueIn(skipIn...)
 			} else {
 				// This is the last operation, so we can just add the skipped input to the final output.
 				outCh <- skipIn
 			}
 
-			o.decrInCount(len(skipIn))
-			o.incrOutCount(len(skipIn))
+			o.decrInCntAndIncrOutCnt(len(skipIn), len(skipIn))
 		}
 	} else {
 		targetIn = in
@@ -393,28 +391,27 @@ func (o *Operation) handleAndPassOutput(
 
 	if o.nextOperation != nil {
 		// If we have the next operation, we need to enqueue the output to it.
-		o.nextOperation.incrInCount(len(opHandlerOut))
+		o.nextOperation.incrInCnt(len(opHandlerOut))
 		o.nextOperation.enqueueIn(opHandlerOut...)
 	} else {
 		// This is the last operation, so we can just add the output to the final output.
 		outCh <- opHandlerOut
 	}
 
-	o.decrInCount(len(targetIn))
-	o.incrOutCount(len(opHandlerOut))
+	o.decrInCntAndIncrOutCnt(len(targetIn), len(opHandlerOut))
 
 	if !o.Completed {
 		if o.prevOperation != nil {
 			// Here we check the previous operation. If the previous operation is completed
 			// and there is no input for the current operation, we can say that the current
 			// operation is completed.
-			if o.prevOperation.Completed && o.InCnt == 0 {
+			if o.prevOperation.Completed && o.InCnt() == 0 {
 				o.complete()
 			}
 		} else {
 			// If this is the first operation, we can say that it's completed if there is
 			// no input for it.
-			if o.InCnt == 0 {
+			if o.InCnt() == 0 {
 				o.complete()
 			}
 		}
@@ -472,25 +469,33 @@ func (o *Operation) dequeueAllIn() []files.ProcessableFile {
 	return in
 }
 
-func (o *Operation) incrInCount(i int) {
-	o.inCntLock.Lock()
-	defer o.inCntLock.Unlock()
+func (o *Operation) InCnt() int {
+	o.inOutCntLock.Lock()
+	defer o.inOutCntLock.Unlock()
 
-	o.InCnt += i
+	return o.inCnt
 }
 
-func (o *Operation) decrInCount(i int) {
-	o.inCntLock.Lock()
-	defer o.inCntLock.Unlock()
+func (o *Operation) OutCnt() int {
+	o.inOutCntLock.Lock()
+	defer o.inOutCntLock.Unlock()
 
-	o.InCnt -= i
+	return o.outCnt
 }
 
-func (o *Operation) incrOutCount(i int) {
-	o.outCntLock.Lock()
-	defer o.outCntLock.Unlock()
+func (o *Operation) decrInCntAndIncrOutCnt(iIn, iOut int) {
+	o.inOutCntLock.Lock()
+	defer o.inOutCntLock.Unlock()
 
-	o.OutCnt += i
+	o.inCnt -= iIn
+	o.outCnt += iOut
+}
+
+func (o *Operation) incrInCnt(i int) {
+	o.inOutCntLock.Lock()
+	defer o.inOutCntLock.Unlock()
+
+	o.inCnt += i
 }
 
 func (o *Operation) initOperationHandler(ctx Context) error {
