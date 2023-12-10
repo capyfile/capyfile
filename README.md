@@ -63,9 +63,10 @@ these values:
 
 ### 2. Run the file processing pipeline.
 
-At this moment you have two options to run the file processing pipeline:
+At this moment you have three options to run the file processing pipeline:
 * via `capycmd` command line application
 * via `capysvr` http server
+* via `capyworker` worker
 
 ## Examples
 
@@ -354,9 +355,10 @@ What we have so far is a basic dev environment running on Docker.
 For the development purposes, we have a docker-compose file with all necessary dependencies 
 (see `docker-compose.dev.yml`).
 
-Also, we have two service definitions for `capysvr` and `capycmd` services:
+Also, we have three service definitions for `capysvr`,`capycmd`, and `capyworker` services:
 * `service-definition.capysvr.dev.json` - prepared service definition for `capysvr`
 * `service-definition.capycmd.dev.json` - prepared service definition for `capycmd`
+* `service-definition.capyworker.dev.yml` - prepared service definition for `capyworker`
 
 And the `dev.sh` script that helps to build, run, and stop the services.
 
@@ -387,5 +389,19 @@ What is available for `capycmd`:
 
 # Stop the capycmd
 ./dev.sh stop capycmd
+```
+
+And the same stuff is available for `capyworker`:
+```bash
+# Build capyworker from the source code and run it with all necessary dependencies
+# This will open the container's shell where you have access to ./capyworker command
+./dev.sh start capyworker
+~$ ./capyworker photos:upload
+
+# If you have made some changes in the source code, you can rebuild the capyworker
+./dev.sh rebuild capyworker
+
+# Stop the capyworker
+./dev.sh stop capyworker
 ```
 

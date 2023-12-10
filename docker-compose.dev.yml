@@ -70,6 +70,33 @@ services:
     networks:
       - capyfile-network-dev
 
+  # Capyfile worker build environment.
+  capyworker:
+    build:
+      context: .
+      dockerfile: docker/dev/capyworker.Dockerfile
+    image: capyfile/capyworker:dev
+    volumes:
+      - .:/go/src/github.com/capyfile/capyfile
+    environment:
+      CAPYFILE_SERVICE_DEFINITION_FILE: '/go/src/github.com/capyfile/capyfile/service-definition.capyworker.dev.yml'
+      # Copy your files to this directory to read them from the capyworker. Or if necessary, replace
+      # the following line with the path that you want to read the files from for the development
+      # purposes.
+      CAPYCMD_DEV_INPUT_READ_TARGET: '/go/src/github.com/capyfile/capyfile/env/dev/files/*'
+      MINIO_ACCESS_KEY_ID: minio_user_dev
+      MINIO_SECRET_ACCESS_KEY: minio_password_dev
+      MINIO_ENDPOINT: http://minio.local:9001/{bucket}
+      MINIO_REGION: us-west-1
+      MINIO_AVATARS_BUCKET: avatars
+      MINIO_ATTACHMENTS_BUCKET: attachments
+      MINIO_PHOTOS_BUCKET: photos
+    depends_on:
+      - minio
+    command: /app/capyworker
+    networks:
+      - capyfile-network-dev
+
   # S3 storage you can use for the development purposes.
   #
   # You can access the minio server at http://localhost:9001 or at http://minio.local:9001 (from

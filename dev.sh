@@ -11,7 +11,7 @@ app_name=$1
 
 # Check if the app_name is valid and perform the requested action
 case $app_name in
-  "capysvr" | "capycmd")
+  "capysvr" | "capycmd" | "capyworker")
     echo "Performing action on $app_name..."
     ;;
   *)
@@ -23,7 +23,7 @@ esac
 # We need to run different services depending on the app.
 if [ "$app_name" = "capysvr" ]; then
   docker_compose_services="proxy minio minio-buckets"
-elif [ "$app_name" = "capycmd" ]; then
+elif [ "$app_name" = "capycmd" ] || [ "$app_name" = "capyworker" ]; then
   docker_compose_services="proxy minio minio-buckets"
 else
   echo "Unknown app: $app_name"
@@ -36,7 +36,7 @@ docker_compose_file="docker-compose.dev.yml"
 start_app() {
   if [ "$1" = "capysvr" ]; then
     docker compose -f $docker_compose_file up -d $docker_compose_services $1
-  elif [ "$1" = "capycmd" ]; then
+  elif [ "$1" = "capycmd" || "$1" = "capyworker" ]; then
     docker compose -f $docker_compose_file up -d $docker_compose_services; \
       docker compose -f $docker_compose_file run --entrypoint "" $1 sh
   else

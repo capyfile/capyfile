@@ -1,5 +1,5 @@
 .idea
 
-service-definition.local.json
-up.local.sh
-stop.local.sh
+capycmd/build
+capysvr/build
+capyworker/build
