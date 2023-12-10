@@ -57,3 +57,27 @@ func (c *CliContext) EtcdClient() *clientv3.Client {
 func (c *CliContext) ParameterLoaderProvider() (parameters.ParameterLoaderProvider, error) {
 	return &svcparameters.GenericParameterLoaderProvider{}, nil
 }
+
+type WorkerContext struct {
+	etcdClient *clientv3.Client
+}
+
+func NewWorkerContext(etcdClient *clientv3.Client) *WorkerContext {
+	return &WorkerContext{
+		etcdClient: etcdClient,
+	}
+}
+
+func (c *WorkerContext) Request() *http.Request {
+	return nil
+}
+
+func (c *WorkerContext) EtcdClient() *clientv3.Client {
+	return c.etcdClient
+}
+
+func (c *WorkerContext) ParameterLoaderProvider() (parameters.ParameterLoaderProvider, error) {
+	return &svcparameters.GenericParameterLoaderProvider{
+		EtcdClient: c.etcdClient,
+	}, nil
+}
