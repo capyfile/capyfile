@@ -17,6 +17,14 @@ builds:
     goarch:
       - amd64
 
+  - id: capyworker
+    binary: capyworker
+    main: ./capyworker
+    goos:
+      - linux
+    goarch:
+      - amd64
+
 archives:
   - id: capysvr
     builds:
@@ -26,6 +34,10 @@ archives:
     builds:
       - capycmd
     name_template: 'capycmd-{{ .Version }}-{{ .Os }}-{{ .Arch }}'
+  - id: capyworker
+    builds:
+      - capyworker
+    name_template: 'capyworker-{{ .Version }}-{{ .Os }}-{{ .Arch }}'
 
 source:
   enabled: true
@@ -45,6 +57,11 @@ dockers:
       - 'capyfile/capycmd:latest'
       - 'capyfile/capycmd:{{ .Major }}-latest'
       - 'capyfile/capycmd:{{ .Version }}'
+  - dockerfile: './docker/capyworker.goreleaser.Dockerfile'
+    image_templates:
+      - 'capyfile/capyworker:latest'
+      - 'capyfile/capyworker:{{ .Major }}-latest'
+      - 'capyfile/capyworker:{{ .Version }}'
 
 release:
   github:
