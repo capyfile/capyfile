@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 )
 
 type Service struct {
@@ -78,25 +79,34 @@ type Processor struct {
 func (p *Processor) RunOperations(
 	ctx Context,
 	in []files.ProcessableFile,
-) (out []files.ProcessableFile, err error) {
-	firstOp, _ := p.firstAndLastOperations()
-	firstOp.enqueueIn(in...)
-	firstOp.incrInCnt(len(in))
+) ([]files.ProcessableFile, error) {
+	firstOp, lastOp := p.firstAndLastOperations()
+
+	if len(in) > 0 {
+		firstOp.operationState.io.in = in
+	}
 
 	for i := range p.Operations {
 		op := &p.Operations[i]
 
-		out, err = op.handler.Handle(op.dequeueAllIn(), nil, nil)
-		if err != nil {
-			return out, err
+		handler, handlerErr := op.Handler(ctx)
+		if handlerErr != nil {
+			return nil, handlerErr
 		}
 
-		if op.nextOperation != nil {
-			op.nextOperation.enqueueIn(out...)
+		opHandleOut, opHandlerErr := handler.Handle(op.operationState.io.in, nil, nil)
+		if opHandlerErr != nil {
+			return opHandleOut, opHandlerErr
+		}
+
+		if op.operationState.nextOperation != nil {
+			op.operationState.nextOperation.operationState.io.in = opHandleOut
+		} else {
+			op.operationState.io.out = opHandleOut
 		}
 	}
 
-	return out, nil
+	return lastOp.operationState.io.out, nil
 }
 
 func (p *Processor) RunOperationsConcurrently(
@@ -104,70 +114,141 @@ func (p *Processor) RunOperationsConcurrently(
 	in []files.ProcessableFile,
 	errorCh chan<- operations.OperationError,
 	notificationCh chan<- operations.OperationNotification,
-) (out []files.ProcessableFile, err error) {
-	firstOp, lastOp := p.firstAndLastOperations()
+) ([]files.ProcessableFile, error) {
+	var completeWg sync.WaitGroup
 
-	firstOp.enqueueIn(in...)
-	firstOp.incrInCnt(len(in))
-
-	outCh := make(chan []files.ProcessableFile)
+	outputHolder := newOutputHolder()
 
 	for i := range p.Operations {
+		completeWg.Add(1)
+
 		op := &p.Operations[i]
 
+		handler, handlerErr := op.Handler(ctx)
+		if handlerErr != nil {
+			if errorCh != nil {
+				errorCh <- operations.NewOperationError(op.Name, handlerErr)
+			}
+
+			return outputHolder.Out, handlerErr
+		}
+
+		if i == 0 {
+			// If this is the first operation, we need to pass the initial input to the operation.
+			if len(in) != 0 {
+				op.operationState.io.enqueueIn(in...)
+			}
+		}
+
+		// The below stuff is quite simple. We have 3 goroutines that are running concurrently:
+		//   - the first one is passing the operation's output to the next operation's input
+		//   - the second one is handling the operation's input
+		//   - the third one is checking whether the operation can be completed or not
+
+		// Pass the output to the next operation's input.
 		go func(op *Operation) {
-			if op.handler.AllowConcurrency() {
-				for !op.Completed {
-					if op.prevOperation != nil {
-						// If what we deal with here is not the first operation, we need to check
-						// whether the previous operation has produced any output. If not, then
-						// the current concurrent operation can be skipped.
-						if op.prevOperation.Completed && op.prevOperation.OutCnt() == 0 {
-							op.complete()
-							break
-						}
-					} else {
-						// If the first operation is happened to be concurrent, we need to check
-						// whether there is any input for it. If not, then the current concurrent
-						// operation can be skipped.
-						if op.InCnt() == 0 {
-							op.complete()
-							break
-						}
-					}
+			nextOp := op.operationState.nextOperation
 
-					opIn := op.dequeueIn(1)
-					if len(opIn) == 0 {
-						continue
-					}
-
-					go op.handleAndPassOutput(opIn, outCh, errorCh, notificationCh)
-				}
-			} else {
-				if op.prevOperation != nil {
-					for !op.prevOperation.Completed {
-						// Wait for all the input for the previous operations to be processed.
-					}
+			if nextOp == nil {
+				// If this is the last operation, then all we need to do is dequeue the
+				// output to the final output holder.
+				for !op.operationState.Completed {
+					op.operationState.io.dequeueOut(
+						func(out []files.ProcessableFile) {
+							outputHolder.Append(out...)
+						},
+					)
 				}
 
-				opIn := op.dequeueAllIn()
-				op.handleAndPassOutput(opIn, outCh, errorCh, notificationCh)
+				return
+			}
+
+			for !op.operationState.Completed {
+				op.operationState.io.dequeueOut(
+					func(out []files.ProcessableFile) {
+						nextOp.operationState.io.enqueueIn(out...)
+					},
+				)
+			}
+		}(op)
+
+		// Handle the operation's input.
+		go func(op *Operation) {
+			handleFn := func(in []files.ProcessableFile) (out []files.ProcessableFile) {
+				targetIn, skipIn := splitIntoTargetSkip(op.TargetFiles, in)
+
+				opHandleOut, opHandleErr := handler.Handle(targetIn, errorCh, notificationCh)
+				if opHandleErr != nil {
+					// Perhaps maybe this is something that is related to the specific file,
+					// so we can just send an error to the channel and continue.
+					if errorCh != nil {
+						errorCh <- operations.NewOperationInputError(op.Name, targetIn, opHandleErr)
+					}
+				}
+
+				if len(skipIn) > 0 {
+					for _, pf := range skipIn {
+						if notificationCh != nil {
+							notificationCh <- operations.NewSkippedOperationNotification(op.Name, op.TargetFiles, &pf)
+						}
+					}
+
+					out = skipIn
+				}
+
+				if len(opHandleOut) > 0 {
+					assignCleanupPolicy(op.CleanupPolicy, opHandleOut)
+
+					out = append(out, opHandleOut...)
+				}
+
+				return out
+			}
+
+			if handler.AllowConcurrency() {
+				// If this is a concurrent operation, we run it until it's completed.
+				for !op.operationState.Completed {
+					op.operationState.io.processIn(handleFn)
+				}
+			}
+
+			prevOp := op.operationState.prevOperation
+			if prevOp != nil {
+				// For the operations that are not concurrent, we need to wait for the previous
+				// operation to be completed, so we can collect all the input for this operation
+				// before run it.
+				for !prevOp.operationState.Completed {
+					// Wait for the previous operation to be completed.
+				}
+			}
+			op.operationState.io.processIn(handleFn)
+		}(op)
+
+		// Complete the operation when no input is expected for it.
+		go func(op *Operation) {
+			defer completeWg.Done()
+
+			// The operation must be run at least once. Only after this it makes sense to
+			// check whether the operation can be completed or not.
+			for op.operationState.io.procCnt.Load() == 0 {
+			}
+
+			prevOp := op.operationState.prevOperation
+			for !op.operationState.Completed {
+				// If this is not the first operation, we need to ensure that the previous one is completed.
+				if prevOp == nil || prevOp.operationState.Completed {
+					if op.operationState.io.isEmpty() {
+						op.operationState.complete()
+						return
+					}
+				}
 			}
 		}(op)
 	}
 
-	go func() {
-		for !lastOp.Completed {
-			// Wait for the last operation to be completed.
-		}
-		close(outCh)
-	}()
+	completeWg.Wait()
 
-	for o := range outCh {
-		out = append(out, o...)
-	}
-
-	return out, nil
+	return outputHolder.Out, nil
 }
 
 // InitOperations initializes the operations before running the pipeline.
@@ -182,8 +263,6 @@ func (p *Processor) RunOperationsConcurrently(
 //   - initializes the operation handlers
 //   - builds the linked list of operations
 func (p *Processor) InitOperations(ctx Context) error {
-	p.resetOperations()
-
 	var prevOp *Operation
 	for i := range p.Operations {
 		op := &p.Operations[i]
@@ -199,42 +278,17 @@ func (p *Processor) InitOperations(ctx Context) error {
 			op.CleanupPolicy = OperationCleanupPolicyKeepFiles
 		}
 
-		opHandlerErr := op.initOperationHandler(ctx)
-		if opHandlerErr != nil {
-			return opHandlerErr
-		}
+		op.Reset()
 
 		if prevOp != nil {
-			prevOp.nextOperation = op
-			prevOp.nextOperation.prevOperation = prevOp
+			prevOp.operationState.nextOperation = op
+			prevOp.operationState.nextOperation.operationState.prevOperation = prevOp
 		}
 
 		prevOp = op
 	}
 
 	return nil
-}
-
-func (p *Processor) resetOperations() {
-	for i := range p.Operations {
-		op := &p.Operations[i]
-
-		op.inLock = &sync.Mutex{}
-		op.in = []files.ProcessableFile{}
-
-		op.inOutCntLock = &sync.Mutex{}
-		op.inCnt = 0
-		op.outCnt = 0
-
-		op.completedLock = &sync.Mutex{}
-		op.Completed = false
-
-		op.handlerLock = &sync.Mutex{}
-		op.handler = nil
-
-		op.prevOperation = nil
-		op.nextOperation = nil
-	}
 }
 
 func (p *Processor) firstAndLastOperations() (firstOp *Operation, lastOp *Operation) {
@@ -272,21 +326,12 @@ type Operation struct {
 	//   - remove_files - remove the files
 	CleanupPolicy string `json:"cleanupPolicy" yaml:"cleanupPolicy"`
 
-	inLock *sync.Mutex
-	in     []files.ProcessableFile
+	operationState *operationState
+}
 
-	inOutCntLock *sync.Mutex
-	// We need inCnt to know when the operation is completed.
-	// Queueing the input is increasing the counter, when the input is processed
-	// we are decreasing the counter. But we can't rely on this when we deal with
-	// the empty input.
-	inCnt int
-	// outCnt is needed for the cases when we want to know whether the operation
-	// produced any output.
-	// For example, if the operation is completed and there is no output, we
-	// should skip any concurrent operations because by their nature they
-	// can't work with empty input.
-	outCnt int
+type operationState struct {
+	// Manages the input and output of the operation.
+	io *ioManager
 
 	completedLock *sync.Mutex
 	// Whether the operation is completed which means that there is no more input
@@ -302,213 +347,83 @@ type Operation struct {
 	nextOperation *Operation
 }
 
-// handleAndPassOutput does the actual input handling and passing the output to
-// the next operation or to the final output channel.
-//
-// Keep in mind that outCh returns the actual final output for the pipeline,
-// not the individual operation output. The individual operation output is
-// passed to the next operation inside this method.
-func (o *Operation) handleAndPassOutput(
-	in []files.ProcessableFile,
-	outCh chan<- []files.ProcessableFile,
-	errorCh chan<- operations.OperationError,
-	notificationCh chan<- operations.OperationNotification,
+// Provides the basic methods to manage the operation's input and output.
+type ioManager struct {
+	inOutLock *sync.RWMutex
+	in        []files.ProcessableFile
+	out       []files.ProcessableFile
+
+	procCnt *atomic.Uint32
+}
+
+func (m *ioManager) isEmpty() bool {
+	m.inOutLock.RLock()
+	defer m.inOutLock.RUnlock()
+
+	return len(m.in) == 0 && len(m.out) == 0
+}
+
+func (m *ioManager) enqueueIn(pf ...files.ProcessableFile) {
+	m.inOutLock.Lock()
+	defer m.inOutLock.Unlock()
+
+	m.in = append(m.in, pf...)
+}
+
+func (m *ioManager) processIn(
+	f func(in []files.ProcessableFile) (out []files.ProcessableFile),
 ) {
-	var targetIn []files.ProcessableFile
-	var skipIn []files.ProcessableFile
+	m.inOutLock.Lock()
+	defer m.inOutLock.Unlock()
 
-	if o.TargetFiles != OperationTargetFilesAll {
-		if o.TargetFiles == OperationTargetFilesWithoutErrors {
-			for _, pf := range in {
-				if !pf.HasFileProcessingError() {
-					targetIn = append(targetIn, pf)
-				} else {
-					skipIn = append(skipIn, pf)
-				}
-			}
-		} else if o.TargetFiles == OperationTargetFilesWithErrors {
-			for _, pf := range in {
-				if pf.HasFileProcessingError() {
-					targetIn = append(targetIn, pf)
-				} else {
-					skipIn = append(skipIn, pf)
-				}
-			}
-		}
+	out := f(m.in)
 
-		// We can pass the skipped input to the next operation if there is any.
-		if len(skipIn) > 0 {
-			for _, pf := range skipIn {
-				if notificationCh != nil {
-					notificationCh <- operations.NewOperationNotification(
-						o.Name,
-						operations.StatusSkipped,
-						fmt.Sprintf("skipped due to \"%s\" target files policy", o.TargetFiles),
-						&pf,
-						nil,
-					)
-				}
-			}
+	m.in = nil
+	m.out = append(m.out, out...)
 
-			if o.nextOperation != nil {
-				// If we have the next operation, we need to enqueue the skipped input to it.
-				o.nextOperation.incrInCnt(len(skipIn))
-				o.nextOperation.enqueueIn(skipIn...)
-			} else {
-				// This is the last operation, so we can just add the skipped input to the final output.
-				outCh <- skipIn
-			}
+	m.procCnt.Add(1)
+}
 
-			o.decrInCntAndIncrOutCnt(len(skipIn), len(skipIn))
-		}
-	} else {
-		targetIn = in
+func (m *ioManager) dequeueOut(
+	f func(out []files.ProcessableFile),
+) {
+	m.inOutLock.Lock()
+	defer m.inOutLock.Unlock()
+
+	if len(m.out) == 0 {
+		return
 	}
 
-	opHandlerOut, opHandlerErr := o.handler.Handle(targetIn, errorCh, notificationCh)
-	if opHandlerErr != nil {
-		// Perhaps maybe this is something that is related to the specific file,
-		// so we can just send an error to the channel and continue.
-		if errorCh != nil {
-			errorCh <- operations.NewOperationInputError(o.Name, targetIn, opHandlerErr)
-		}
-	}
+	f(m.out)
 
-	// Here we need to set the cleanup policy for the files processed by the operation.
-	// Keep in mind that the policy will actually be set for the files that does
-	// not have it already set.
-	for i := range opHandlerOut {
-		pf := &opHandlerOut[i]
-		switch o.CleanupPolicy {
-		case OperationCleanupPolicyKeepFiles:
-			pf.KeepOnFreeResources()
-			break
-		case OperationCleanupPolicyRemoveFiles:
-			pf.RemoveOnFreeResources()
-			break
-		}
-	}
+	m.out = nil
+}
 
-	if o.nextOperation != nil {
-		// If we have the next operation, we need to enqueue the output to it.
-		o.nextOperation.incrInCnt(len(opHandlerOut))
-		o.nextOperation.enqueueIn(opHandlerOut...)
-	} else {
-		// This is the last operation, so we can just add the output to the final output.
-		outCh <- opHandlerOut
-	}
-
-	o.decrInCntAndIncrOutCnt(len(targetIn), len(opHandlerOut))
-
-	if !o.Completed {
-		if o.prevOperation != nil {
-			// Here we check the previous operation. If the previous operation is completed
-			// and there is no input for the current operation, we can say that the current
-			// operation is completed.
-			if o.prevOperation.Completed && o.InCnt() == 0 {
-				o.complete()
-			}
-		} else {
-			// If this is the first operation, we can say that it's completed if there is
-			// no input for it.
-			if o.InCnt() == 0 {
-				o.complete()
-			}
-		}
+func (o *Operation) Reset() {
+	o.operationState = &operationState{
+		io: &ioManager{
+			inOutLock: &sync.RWMutex{},
+			procCnt:   &atomic.Uint32{},
+		},
+		completedLock: &sync.Mutex{},
+		handlerLock:   &sync.Mutex{},
 	}
 }
 
-func (o *Operation) complete() {
+func (o *operationState) complete() {
 	o.completedLock.Lock()
 	defer o.completedLock.Unlock()
 
 	o.Completed = true
 }
 
-func (o *Operation) sizeIn() int {
-	o.inLock.Lock()
-	defer o.inLock.Unlock()
+func (o *Operation) Handler(ctx Context) (operations.OperationHandler, error) {
+	o.operationState.handlerLock.Lock()
+	defer o.operationState.handlerLock.Unlock()
 
-	return len(o.in)
-}
-
-func (o *Operation) enqueueIn(pf ...files.ProcessableFile) {
-	o.inLock.Lock()
-	defer o.inLock.Unlock()
-
-	o.in = append(o.in, pf...)
-}
-
-func (o *Operation) dequeueIn(size int) []files.ProcessableFile {
-	o.inLock.Lock()
-	defer o.inLock.Unlock()
-
-	if len(o.in) == 0 {
-		return nil
-	}
-
-	var dequeuedIn []files.ProcessableFile
-	if size > len(o.in) {
-		dequeuedIn = o.in
-		o.in = nil
-	} else {
-		dequeuedIn = o.in[:size]
-		o.in = o.in[size:]
-	}
-
-	return dequeuedIn
-}
-
-func (o *Operation) dequeueAllIn() []files.ProcessableFile {
-	o.inLock.Lock()
-	defer o.inLock.Unlock()
-
-	in := o.in
-	o.in = nil
-
-	return in
-}
-
-func (o *Operation) InCnt() int {
-	o.inOutCntLock.Lock()
-	defer o.inOutCntLock.Unlock()
-
-	return o.inCnt
-}
-
-func (o *Operation) OutCnt() int {
-	o.inOutCntLock.Lock()
-	defer o.inOutCntLock.Unlock()
-
-	return o.outCnt
-}
-
-func (o *Operation) decrInCntAndIncrOutCnt(iIn, iOut int) {
-	o.inOutCntLock.Lock()
-	defer o.inOutCntLock.Unlock()
-
-	o.inCnt -= iIn
-	o.outCnt += iOut
-}
-
-func (o *Operation) incrInCnt(i int) {
-	o.inOutCntLock.Lock()
-	defer o.inOutCntLock.Unlock()
-
-	o.inCnt += i
-}
-
-func (o *Operation) initOperationHandler(ctx Context) error {
 	// If the handler is already created, return it.
-	if o.handler != nil {
-		return nil
-	}
-
-	o.handlerLock.Lock()
-	defer o.handlerLock.Unlock()
-
-	if o.handler != nil {
-		return nil
+	if o.operationState.handler != nil {
+		return o.operationState.handler, nil
 	}
 
 	var oh operations.OperationHandler
@@ -516,14 +431,14 @@ func (o *Operation) initOperationHandler(ctx Context) error {
 
 	parameterLoaderProvider, parameterLoaderProviderErr := ctx.ParameterLoaderProvider()
 	if parameterLoaderProviderErr != nil {
-		return parameterLoaderProviderErr
+		return nil, parameterLoaderProviderErr
 	}
 
 	switch o.Name {
 	case "http_multipart_form_input_read":
 		req := ctx.Request()
 		if req == nil {
-			return errors.New("http request is not available in the given context")
+			return nil, errors.New("http request is not available in the given context")
 		}
 
 		oh, ohErr = opfactories.NewHttpMultipartFormInputReadOperation(o.Name, ctx.Request())
@@ -531,7 +446,7 @@ func (o *Operation) initOperationHandler(ctx Context) error {
 	case "http_octet_stream_input_read":
 		req := ctx.Request()
 		if req == nil {
-			return errors.New("http request is not available in the given context")
+			return nil, errors.New("http request is not available in the given context")
 		}
 
 		oh, ohErr = opfactories.NewHttpOctetStreamInputReadOperation(o.Name, ctx.Request())
@@ -603,14 +518,71 @@ func (o *Operation) initOperationHandler(ctx Context) error {
 		)
 		break
 	default:
-		return fmt.Errorf("unknown operation \"%s\"", o.Name)
+		return nil, fmt.Errorf("unknown operation \"%s\"", o.Name)
 	}
 
-	if ohErr == nil {
-		o.handler = oh
-
-		return nil
+	if ohErr != nil {
+		return nil, ohErr
 	}
 
-	return ohErr
+	return oh, nil
+}
+
+func splitIntoTargetSkip(targetPolicy string, in []files.ProcessableFile) (target, skip []files.ProcessableFile) {
+	if targetPolicy == OperationTargetFilesAll {
+		return in, []files.ProcessableFile{}
+	}
+
+	if targetPolicy == OperationTargetFilesWithoutErrors {
+		for _, pf := range in {
+			if !pf.HasFileProcessingError() {
+				target = append(target, pf)
+			} else {
+				skip = append(skip, pf)
+			}
+		}
+	} else if targetPolicy == OperationTargetFilesWithErrors {
+		for _, pf := range in {
+			if pf.HasFileProcessingError() {
+				target = append(target, pf)
+			} else {
+				skip = append(skip, pf)
+			}
+		}
+	}
+
+	return target, skip
+}
+
+func assignCleanupPolicy(cleanupPolicy string, in []files.ProcessableFile) {
+	for i := range in {
+		pf := &in[i]
+
+		switch cleanupPolicy {
+		case OperationCleanupPolicyKeepFiles:
+			pf.KeepOnFreeResources()
+			break
+		case OperationCleanupPolicyRemoveFiles:
+			pf.RemoveOnFreeResources()
+			break
+		}
+	}
+}
+
+type outHolder struct {
+	outLock *sync.Mutex
+	Out     []files.ProcessableFile
+}
+
+func newOutputHolder() *outHolder {
+	return &outHolder{
+		outLock: &sync.Mutex{},
+	}
+}
+
+func (o *outHolder) Append(pf ...files.ProcessableFile) {
+	o.outLock.Lock()
+	defer o.outLock.Unlock()
+
+	o.Out = append(o.Out, pf...)
 }

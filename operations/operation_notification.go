@@ -1,6 +1,9 @@
 package operations
 
-import "capyfile/files"
+import (
+	"capyfile/files"
+	"fmt"
+)
 
 const (
 	StatusSkipped = iota
@@ -72,4 +75,18 @@ func NewOperationNotification(
 		ProcessableFile:        pf,
 		Error:                  err,
 	}
+}
+
+func NewSkippedOperationNotification(
+	operationName string,
+	targetPolicy string,
+	pf *files.ProcessableFile,
+) OperationNotification {
+	return NewOperationNotification(
+		operationName,
+		StatusSkipped,
+		fmt.Sprintf("skipped due to \"%s\" target files policy", targetPolicy),
+		pf,
+		nil,
+	)
 }
