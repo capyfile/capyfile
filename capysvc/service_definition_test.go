@@ -6,10 +6,101 @@ import (
 	"capyfile/files"
 	"capyfile/operations"
 	"capyfile/parameters"
+	"fmt"
+	"golang.org/x/exp/rand"
 	"golang.org/x/exp/slices"
 	"net/http"
 	"testing"
 )
+
+func benchmarkServiceDefinition() Service {
+	return Service{
+		Name: "bin_files",
+		Processors: []Processor{
+			{
+				Name: "validate",
+				Operations: []Operation{
+					{
+						Name: "filesystem_input_read",
+						Params: map[string]parameters.Parameter{
+							"target": {
+								SourceType: "value",
+								Source:     "/tmp/testdata/*",
+							},
+						},
+					},
+					{
+						Name: "file_size_validate",
+						Params: map[string]parameters.Parameter{
+							"maxFileSize": {
+								SourceType: "value",
+								Source:     5 * 1024, // max file size is 5kb
+							},
+						},
+					},
+					{
+						Name: "file_type_validate",
+						Params: map[string]parameters.Parameter{
+							"allowedMimeTypes": {
+								SourceType: "value",
+								Source:     []string{"image/jpeg"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func BenchmarkService_RunProcessorConcurrently(b *testing.B) {
+	capyfs.InitCopyOnWriteFilesystem()
+
+	sizes := []int{1, 3, 5, 7, 10}
+	filesPerSize := 100
+
+	mkdirErr := capyfs.FilesystemUtils.MkdirAll("/tmp/testdata", 0755)
+	if mkdirErr != nil {
+		b.Fatalf("expected error to be nil, got %v", mkdirErr)
+	}
+
+	for _, sizeKb := range sizes {
+		for i := 0; i < filesPerSize; i++ {
+			buf := make([]byte, sizeKb*1024)
+			_, readErr := rand.Read(buf)
+			if readErr != nil {
+				b.Fatalf("expected error to be nil, got %v", readErr)
+			}
+
+			fileWriteErr := capyfs.FilesystemUtils.WriteFile(
+				fmt.Sprintf("/tmp/testdata/file_%dkb_%d.bin", sizeKb, i),
+				buf,
+				0644)
+			if fileWriteErr != nil {
+				b.Fatalf("expected error to be nil, got %v", fileWriteErr)
+			}
+		}
+	}
+
+	sd := benchmarkServiceDefinition()
+
+	for i := 0; i < b.N; i++ {
+		procOut, procErr := sd.RunProcessorConcurrently(
+			NewCliContext(),
+			"validate",
+			[]files.ProcessableFile{},
+			nil,
+			nil,
+		)
+		if procErr != nil {
+			b.Fatalf("expected error to be nil, got %v", procErr)
+		}
+
+		if len(procOut) != len(sizes)*filesPerSize {
+			b.Fatalf("len(procOut) = %d, want %d", len(procOut), len(sizes)*filesPerSize)
+		}
+	}
+}
 
 func testServiceDefinitionForServerContext() Service {
 	return Service{
@@ -129,7 +220,10 @@ func TestService_RunProcessors(t *testing.T) {
 	out, err := sd.RunProcessor(
 		NewServerContext(req, nil),
 		"photo",
-		in)
+		in,
+		nil,
+		nil,
+	)
 
 	if err != nil {
 		t.Fatalf("expect no error while running processor, got %v", err)

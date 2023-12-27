@@ -32,18 +32,20 @@ func (s *Service) RunProcessor(
 	ctx Context,
 	processorName string,
 	in []files.ProcessableFile,
+	errorCh chan<- operations.OperationError,
+	notificationCh chan<- operations.OperationNotification,
 ) (out []files.ProcessableFile, err error) {
 	proc := s.FindProcessor(processorName)
 	if proc == nil {
 		return out, capyerr.NewProcessorNotFoundError(processorName)
 	}
 
-	iniOpsErr := proc.InitOperations(ctx)
-	if iniOpsErr != nil {
-		return out, iniOpsErr
+	initOpsErr := proc.InitOperations(ctx)
+	if initOpsErr != nil {
+		return out, initOpsErr
 	}
 
-	return proc.RunOperations(ctx, in)
+	return proc.RunOperations(ctx, in, errorCh, notificationCh)
 }
 
 func (s *Service) RunProcessorConcurrently(
@@ -79,6 +81,8 @@ type Processor struct {
 func (p *Processor) RunOperations(
 	ctx Context,
 	in []files.ProcessableFile,
+	errorCh chan<- operations.OperationError,
+	notificationCh chan<- operations.OperationNotification,
 ) ([]files.ProcessableFile, error) {
 	firstOp, lastOp := p.firstAndLastOperations()
 
@@ -91,11 +95,19 @@ func (p *Processor) RunOperations(
 
 		handler, handlerErr := op.Handler(ctx)
 		if handlerErr != nil {
+			if errorCh != nil {
+				errorCh <- operations.NewOperationError(op.Name, handlerErr)
+			}
+
 			return nil, handlerErr
 		}
 
-		opHandleOut, opHandlerErr := handler.Handle(op.operationState.io.in, nil, nil)
+		opHandleOut, opHandlerErr := handler.Handle(op.operationState.io.in, errorCh, notificationCh)
 		if opHandlerErr != nil {
+			if errorCh != nil {
+				errorCh <- operations.NewOperationInputError(op.Name, op.operationState.io.in, opHandlerErr)
+			}
+
 			return opHandleOut, opHandlerErr
 		}
 
@@ -115,13 +127,15 @@ func (p *Processor) RunOperationsConcurrently(
 	errorCh chan<- operations.OperationError,
 	notificationCh chan<- operations.OperationNotification,
 ) ([]files.ProcessableFile, error) {
-	var completeWg sync.WaitGroup
+	var (
+		inOutWg    sync.WaitGroup
+		procWg     sync.WaitGroup
+		completeWg sync.WaitGroup
+	)
 
 	outputHolder := newOutputHolder()
 
 	for i := range p.Operations {
-		completeWg.Add(1)
-
 		op := &p.Operations[i]
 
 		handler, handlerErr := op.Handler(ctx)
@@ -146,7 +160,10 @@ func (p *Processor) RunOperationsConcurrently(
 		//   - the third one is checking whether the operation can be completed or not
 
 		// Pass the output to the next operation's input.
+		inOutWg.Add(1)
 		go func(op *Operation) {
+			defer inOutWg.Done()
+
 			nextOp := op.operationState.nextOperation
 
 			if nextOp == nil {
@@ -173,7 +190,10 @@ func (p *Processor) RunOperationsConcurrently(
 		}(op)
 
 		// Handle the operation's input.
+		procWg.Add(1)
 		go func(op *Operation) {
+			defer procWg.Done()
+
 			handleFn := func(in []files.ProcessableFile) (out []files.ProcessableFile) {
 				targetIn, skipIn := splitIntoTargetSkip(op.TargetFiles, in)
 
@@ -210,6 +230,8 @@ func (p *Processor) RunOperationsConcurrently(
 				for !op.operationState.Completed {
 					op.operationState.io.processIn(handleFn)
 				}
+
+				return
 			}
 
 			prevOp := op.operationState.prevOperation
@@ -225,6 +247,7 @@ func (p *Processor) RunOperationsConcurrently(
 		}(op)
 
 		// Complete the operation when no input is expected for it.
+		completeWg.Add(1)
 		go func(op *Operation) {
 			defer completeWg.Done()
 
@@ -246,6 +269,8 @@ func (p *Processor) RunOperationsConcurrently(
 		}(op)
 	}
 
+	inOutWg.Wait()
+	procWg.Wait()
 	completeWg.Wait()
 
 	return outputHolder.Out, nil
@@ -524,6 +549,8 @@ func (o *Operation) Handler(ctx Context) (operations.OperationHandler, error) {
 	if ohErr != nil {
 		return nil, ohErr
 	}
+
+	o.operationState.handler = oh
 
 	return oh, nil
 }
