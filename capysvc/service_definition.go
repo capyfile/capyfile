@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 type Service struct {
@@ -144,7 +145,7 @@ func (p *Processor) RunOperationsConcurrently(
 				errorCh <- operations.NewOperationError(op.Name, handlerErr)
 			}
 
-			return outputHolder.Out, handlerErr
+			return outputHolder.Out(), handlerErr
 		}
 
 		if i == 0 {
@@ -175,6 +176,8 @@ func (p *Processor) RunOperationsConcurrently(
 							outputHolder.Append(out...)
 						},
 					)
+
+					op.IOTick()
 				}
 
 				return
@@ -186,6 +189,8 @@ func (p *Processor) RunOperationsConcurrently(
 						nextOp.operationState.io.enqueueIn(out...)
 					},
 				)
+
+				op.IOTick()
 			}
 		}(op)
 
@@ -228,7 +233,9 @@ func (p *Processor) RunOperationsConcurrently(
 			if handler.AllowConcurrency() {
 				// If this is a concurrent operation, we run it until it's completed.
 				for !op.operationState.Completed {
-					op.operationState.io.processIn(handleFn)
+					op.operationState.io.processIn(op.MaxPacketSize, handleFn)
+
+					op.HandlerTick()
 				}
 
 				return
@@ -241,9 +248,10 @@ func (p *Processor) RunOperationsConcurrently(
 				// before run it.
 				for !prevOp.operationState.Completed {
 					// Wait for the previous operation to be completed.
+					op.HandlerTick()
 				}
 			}
-			op.operationState.io.processIn(handleFn)
+			op.operationState.io.processIn(0, handleFn)
 		}(op)
 
 		// Complete the operation when no input is expected for it.
@@ -254,6 +262,7 @@ func (p *Processor) RunOperationsConcurrently(
 			// The operation must be run at least once. Only after this it makes sense to
 			// check whether the operation can be completed or not.
 			for op.operationState.io.procCnt.Load() == 0 {
+				op.StatusTick()
 			}
 
 			prevOp := op.operationState.prevOperation
@@ -265,6 +274,8 @@ func (p *Processor) RunOperationsConcurrently(
 						return
 					}
 				}
+
+				op.StatusTick()
 			}
 		}(op)
 	}
@@ -273,7 +284,7 @@ func (p *Processor) RunOperationsConcurrently(
 	procWg.Wait()
 	completeWg.Wait()
 
-	return outputHolder.Out, nil
+	return outputHolder.Out(), nil
 }
 
 // InitOperations initializes the operations before running the pipeline.
@@ -301,6 +312,31 @@ func (p *Processor) InitOperations(ctx Context) error {
 		// the handler will keep the files produced by the operation.
 		if op.CleanupPolicy == "" {
 			op.CleanupPolicy = OperationCleanupPolicyKeepFiles
+		}
+
+		if op.IOTickDelay != "" {
+			d, dErr := time.ParseDuration(op.IOTickDelay)
+			if dErr != nil {
+				return dErr
+			}
+
+			op.ioTickDelayDuration = d
+		}
+		if op.HandlerTickDelay != "" {
+			d, dErr := time.ParseDuration(op.HandlerTickDelay)
+			if dErr != nil {
+				return dErr
+			}
+
+			op.handlerTickDelayDuration = d
+		}
+		if op.StatusTickDelay != "" {
+			d, dErr := time.ParseDuration(op.StatusTickDelay)
+			if dErr != nil {
+				return dErr
+			}
+
+			op.statusTickDelayDuration = d
 		}
 
 		op.Reset()
@@ -338,6 +374,7 @@ const (
 type Operation struct {
 	Name   string                          `json:"name" yaml:"name"`
 	Params map[string]parameters.Parameter `json:"params" yaml:"params"`
+
 	// TargetFiles is the parameter that defines which files should be handled by the operation.
 	// The possible values are:
 	//   - without_errors - only the input files without errors (default)
@@ -351,7 +388,63 @@ type Operation struct {
 	//   - remove_files - remove the files
 	CleanupPolicy string `json:"cleanupPolicy" yaml:"cleanupPolicy"`
 
+	// MaxPacketSize is the parameter that defines the maximum size of the
+	// packet that is passed to the operation handler. Packet in this
+	// context is the input (files) that is passed to the operation handler
+	// at once.
+	// For example, 10 means the operation handler will be processing not
+	// more than 10 files at once.
+	MaxPacketSize int `json:"maxPacketSize" yaml:"maxPacketSize"`
+
+	// By default, capyfile provides maximum performance. But all this performance comes
+	// with a cost of CPU usage. So if you want to reduce the CPU usage, you can set the
+	// tick delays for the operations. In general, it makes sense to set the tick delays
+	// if you pipeline works with the large files.
+
+	// IOTickDelay is the parameter that defines the tick delay of the IO
+	// operations, such as moving the input between the operations. It can be
+	// any duration string that is supported by the time.ParseDuration function,
+	// for example, "1s", "1ms", "10μs", "1.5h", etc.
+	IOTickDelay         string `json:"ioTickDelay" yaml:"ioTickDelay"`
+	ioTickDelayDuration time.Duration
+	// HandlerTickDelay is the parameter that defines the tick delay of the
+	// input handler in the concurrent mode. It can be any duration string that
+	// is supported by the time.ParseDuration function, for example, "1s",
+	// "1ms", "10μs", "1.5h", etc.
+	HandlerTickDelay         string `json:"handlerTickDelay" yaml:"handlerTickDelay"`
+	handlerTickDelayDuration time.Duration
+	// StatusTickDelay is the parameter that defines the tick delay of the
+	// operation status update. It can be any duration string that
+	// is supported by the time.ParseDuration function, for example, "1s",
+	// "1ms", "10μs", "1.5h", etc.
+	StatusTickDelay         string `json:"statusTickDelay" yaml:"statusTickDelay"`
+	statusTickDelayDuration time.Duration
+
 	operationState *operationState
+}
+
+func (o *Operation) IOTick() {
+	if o.ioTickDelayDuration == 0 {
+		return
+	}
+
+	time.Sleep(o.ioTickDelayDuration)
+}
+
+func (o *Operation) HandlerTick() {
+	if o.handlerTickDelayDuration == 0 {
+		return
+	}
+
+	time.Sleep(o.handlerTickDelayDuration)
+}
+
+func (o *Operation) StatusTick() {
+	if o.statusTickDelayDuration == 0 {
+		return
+	}
+
+	time.Sleep(o.statusTickDelayDuration)
 }
 
 type operationState struct {
@@ -396,14 +489,27 @@ func (m *ioManager) enqueueIn(pf ...files.ProcessableFile) {
 }
 
 func (m *ioManager) processIn(
+	inSize int,
 	f func(in []files.ProcessableFile) (out []files.ProcessableFile),
 ) {
 	m.inOutLock.Lock()
 	defer m.inOutLock.Unlock()
 
-	out := f(m.in)
+	var in []files.ProcessableFile
+	if inSize == 0 {
+		in = m.in
+		m.in = nil
+	} else {
+		if len(m.in) < inSize {
+			inSize = len(m.in)
+		}
 
-	m.in = nil
+		in = m.in[:inSize]
+		m.in = m.in[inSize:]
+	}
+
+	out := f(in)
+
 	m.out = append(m.out, out...)
 
 	m.procCnt.Add(1)
@@ -597,13 +703,13 @@ func assignCleanupPolicy(cleanupPolicy string, in []files.ProcessableFile) {
 }
 
 type outHolder struct {
-	outLock *sync.Mutex
-	Out     []files.ProcessableFile
+	outLock *sync.RWMutex
+	out     []files.ProcessableFile
 }
 
 func newOutputHolder() *outHolder {
 	return &outHolder{
-		outLock: &sync.Mutex{},
+		outLock: &sync.RWMutex{},
 	}
 }
 
@@ -611,5 +717,12 @@ func (o *outHolder) Append(pf ...files.ProcessableFile) {
 	o.outLock.Lock()
 	defer o.outLock.Unlock()
 
-	o.Out = append(o.Out, pf...)
+	o.out = append(o.out, pf...)
+}
+
+func (o *outHolder) Out() []files.ProcessableFile {
+	o.outLock.RLock()
+	defer o.outLock.RUnlock()
+
+	return o.out
 }
