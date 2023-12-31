@@ -18,6 +18,7 @@ import (
 
 type Worker struct {
 	ServiceDefinitionFile string
+	Concurrency           bool
 	SleepTime             int
 	MaxIterations         int
 	LogFile               string
@@ -88,13 +89,25 @@ func (s *Worker) Run(serviceProcessor string) error {
 
 			return nil
 		default:
-			out, procErr := svc.RunProcessorConcurrently(
-				capysvc.NewWorkerContext(common.EtcdClient),
-				proc.Name,
-				[]files.ProcessableFile{},
-				errorCh,
-				notificationCh,
-			)
+			var out []files.ProcessableFile
+			var procErr error
+			if s.Concurrency {
+				out, procErr = svc.RunProcessorConcurrently(
+					capysvc.NewWorkerContext(common.EtcdClient),
+					proc.Name,
+					[]files.ProcessableFile{},
+					errorCh,
+					notificationCh,
+				)
+			} else {
+				out, procErr = svc.RunProcessor(
+					capysvc.NewWorkerContext(common.EtcdClient),
+					proc.Name,
+					[]files.ProcessableFile{},
+					errorCh,
+					notificationCh,
+				)
+			}
 			if procErr != nil {
 				common.Logger.Error(
 					"service processor error",

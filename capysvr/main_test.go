@@ -96,7 +96,10 @@ func TestProcessFiles(t *testing.T) {
 
 	w := httptest.NewRecorder()
 
-	Handler(w, req)
+	s := Server{
+		Concurrency: true,
+	}
+	s.Handler(w, req)
 
 	resp := w.Result()
 	defer resp.Body.Close()

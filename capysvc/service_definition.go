@@ -103,7 +103,9 @@ func (p *Processor) RunOperations(
 			return nil, handlerErr
 		}
 
-		opHandleOut, opHandlerErr := handler.Handle(op.operationState.io.in, errorCh, notificationCh)
+		targetIn, skipIn := splitIntoTargetSkip(op.TargetFiles, op.operationState.io.in)
+
+		opHandleOut, opHandlerErr := handler.Handle(targetIn, errorCh, notificationCh)
 		if opHandlerErr != nil {
 			if errorCh != nil {
 				errorCh <- operations.NewOperationInputError(op.Name, op.operationState.io.in, opHandlerErr)
@@ -112,10 +114,12 @@ func (p *Processor) RunOperations(
 			return opHandleOut, opHandlerErr
 		}
 
+		assignCleanupPolicy(op.CleanupPolicy, opHandleOut)
+
 		if op.operationState.nextOperation != nil {
-			op.operationState.nextOperation.operationState.io.in = opHandleOut
+			op.operationState.nextOperation.operationState.io.in = append(opHandleOut, skipIn...)
 		} else {
-			op.operationState.io.out = opHandleOut
+			op.operationState.io.out = append(opHandleOut, skipIn...)
 		}
 	}
 

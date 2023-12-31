@@ -22,8 +22,10 @@ import (
 )
 
 type Server struct {
-	Addr string
+	ServiceDefinitionFile string
+	Concurrency           bool
 
+	Addr     string
 	CertFile string
 	KeyFile  string
 
@@ -50,7 +52,7 @@ func (s *Server) Init() error {
 	}
 
 	// Load the service definition after which the server is ready to be running.
-	sdLoadErr := capysvc.LoadServiceDefinition("")
+	sdLoadErr := capysvc.LoadServiceDefinition(s.ServiceDefinitionFile)
 	if sdLoadErr != nil {
 		return sdLoadErr
 	}
@@ -79,7 +81,7 @@ func (s *Server) Run() error {
 
 	httpServer := &http.Server{
 		Addr:    s.Addr,
-		Handler: http.HandlerFunc(Handler),
+		Handler: http.HandlerFunc(s.Handler),
 		BaseContext: func(listener net.Listener) context.Context {
 			return mainCtx
 		},
@@ -130,7 +132,7 @@ func (s *Server) Run() error {
 	return nil
 }
 
-func Handler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) Handler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	// What we have so far is /:service-name/:processor-name as file uploading
@@ -186,58 +188,31 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 	notificationCh := make(chan operations.OperationNotification)
 
 	// Log errors and notifications.
-	go func() {
-		for err := range errorCh {
-			common.Logger.Error(
-				"operation error",
-				slog.String("service", svc.Name),
-				slog.String("processor", proc.Name),
-				slog.String("operation", err.OperationName),
-				slog.Any("error", err.Err),
-			)
-		}
-	}()
-	go func() {
-		for notification := range notificationCh {
-			var operationStatus string
-			switch notification.OperationStatus {
-			case operations.StatusSkipped:
-				operationStatus = "SKIPPED"
-			case operations.StatusStarted:
-				operationStatus = "STARTED"
-			case operations.StatusFinished:
-				operationStatus = "FINISHED"
-			case operations.StatusFailed:
-				operationStatus = "FAILED"
-			}
-
-			var filename = ""
-			if notification.ProcessableFile != nil {
-				filename = notification.ProcessableFile.OriginalFilename()
-			}
-
-			common.Logger.Info(
-				"operation notification",
-				slog.String("service", svc.Name),
-				slog.String("processor", proc.Name),
-				slog.String("operation", notification.OperationName),
-				slog.String("operationStatus", operationStatus),
-				slog.String("operationStatusMessage", notification.OperationStatusMessage),
-				slog.String("filename", filename),
-			)
-		}
-	}()
+	go readErrorChAndLog(svc.Name, proc.Name, errorCh)
+	go readNotificationChAndLog(svc.Name, proc.Name, notificationCh)
 
 	// Here we do not check the http input is empty. It gives an option to trigger the
 	// processor that retrieves an input from elsewhere (e.g. http, filesystem, some queue).
 
-	out, procErr := svc.RunProcessorConcurrently(
-		capysvc.NewServerContext(r, common.EtcdClient),
-		proc.Name,
-		[]files.ProcessableFile{},
-		errorCh,
-		notificationCh,
-	)
+	var out []files.ProcessableFile
+	var procErr error
+	if s.Concurrency {
+		out, procErr = svc.RunProcessorConcurrently(
+			capysvc.NewServerContext(r, common.EtcdClient),
+			proc.Name,
+			[]files.ProcessableFile{},
+			errorCh,
+			notificationCh,
+		)
+	} else {
+		out, procErr = svc.RunProcessor(
+			capysvc.NewServerContext(r, common.EtcdClient),
+			proc.Name,
+			[]files.ProcessableFile{},
+			errorCh,
+			notificationCh,
+		)
+	}
 	if procErr != nil {
 		common.Logger.Error(
 			"service processor error",
@@ -328,5 +303,60 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 			w,
 		)
 		return
+	}
+}
+
+func readErrorChAndLog(svcName, procName string, errorCh chan operations.OperationError) {
+	for err := range errorCh {
+		var filename = "-"
+		var origFilename = "-"
+		if err.ProcessableFile != nil {
+			filename = err.ProcessableFile.Filename()
+			origFilename = err.ProcessableFile.OriginalFilename()
+		}
+
+		common.Logger.Error(
+			"operation error",
+			slog.String("service", svcName),
+			slog.String("processor", procName),
+			slog.String("operation", err.OperationName),
+			slog.Any("error", err.Err),
+			slog.String("filename", filename),
+			slog.String("origFilename", origFilename),
+		)
+	}
+}
+
+func readNotificationChAndLog(svcName, procName string, notificationCh chan operations.OperationNotification) {
+	for notification := range notificationCh {
+		var operationStatus string
+		switch notification.OperationStatus {
+		case operations.StatusSkipped:
+			operationStatus = "SKIPPED"
+		case operations.StatusStarted:
+			operationStatus = "STARTED"
+		case operations.StatusFinished:
+			operationStatus = "FINISHED"
+		case operations.StatusFailed:
+			operationStatus = "FAILED"
+		}
+
+		var filename = "-"
+		var origFilename = "-"
+		if notification.ProcessableFile != nil {
+			filename = notification.ProcessableFile.Filename()
+			origFilename = notification.ProcessableFile.OriginalFilename()
+		}
+
+		common.Logger.Info(
+			"operation notification",
+			slog.String("service", svcName),
+			slog.String("processor", procName),
+			slog.String("operation", notification.OperationName),
+			slog.String("operationStatus", operationStatus),
+			slog.String("operationStatusMessage", notification.OperationStatusMessage),
+			slog.String("filename", filename),
+			slog.String("origFilename", origFilename),
+		)
 	}
 }

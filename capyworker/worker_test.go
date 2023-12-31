@@ -79,6 +79,7 @@ func TestWorker_Run(t *testing.T) {
 	}
 
 	worker := Worker{
+		Concurrency:   true,
 		MaxIterations: 3,
 	}
 	runError := worker.Run("bin_files:remove_large_files")

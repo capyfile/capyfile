@@ -12,6 +12,7 @@ import (
 
 type Cli struct {
 	ServiceDefinitionFile string
+	Concurrency           bool
 }
 
 func (s *Cli) Init() error {
@@ -65,53 +66,31 @@ func (s *Cli) Run(serviceProcessor string) error {
 	errorCh := make(chan operations.OperationError)
 	notificationCh := make(chan operations.OperationNotification)
 
-	go func() {
-		for err := range errorCh {
-			printlnErrorMsg(
-				fmt.Sprintf("%s: %s", err.OperationName, err.Err.Error()))
-		}
-	}()
-	go func() {
-		for notification := range notificationCh {
-			var operationStatus string
-			switch notification.OperationStatus {
-			case operations.StatusSkipped:
-				operationStatus = "SKIPPED"
-			case operations.StatusStarted:
-				operationStatus = "STARTED"
-			case operations.StatusFinished:
-				operationStatus = "FINISHED"
-			case operations.StatusFailed:
-				operationStatus = "FAILED"
-			}
-
-			var fileName = "-"
-			if notification.ProcessableFile != nil {
-				fileName = notification.ProcessableFile.OriginalFilename()
-			}
-
-			fmt.Println(
-				fmt.Sprintf(
-					"[%s] \033[1m%s %s\033[0m %s",
-					fileName,
-					notification.OperationName,
-					operationStatus,
-					notification.OperationStatusMessage,
-				),
-			)
-		}
-	}()
+	go readErrorChAndWriteToStdout(errorCh)
+	go readNotificationChAndWriteToStdout(notificationCh)
 
 	fmt.Println(fmt.Sprintf("Running %s:%s service processor...", svc.Name, proc.Name))
 	fmt.Println()
 
-	out, procErr := svc.RunProcessorConcurrently(
-		capysvc.NewCliContext(),
-		proc.Name,
-		[]files.ProcessableFile{},
-		errorCh,
-		notificationCh,
-	)
+	var out []files.ProcessableFile
+	var procErr error
+	if !s.Concurrency {
+		out, procErr = svc.RunProcessorConcurrently(
+			capysvc.NewCliContext(),
+			proc.Name,
+			[]files.ProcessableFile{},
+			errorCh,
+			notificationCh,
+		)
+	} else {
+		out, procErr = svc.RunProcessor(
+			capysvc.NewCliContext(),
+			proc.Name,
+			[]files.ProcessableFile{},
+			errorCh,
+			notificationCh,
+		)
+	}
 	if procErr != nil {
 		printlnErrorMsg("Failed to run the processor: " + procErr.Error())
 		return nil
@@ -146,6 +125,44 @@ func (s *Cli) Run(serviceProcessor string) error {
 	}
 
 	return nil
+}
+
+func readErrorChAndWriteToStdout(errorCh chan operations.OperationError) {
+	for err := range errorCh {
+		printlnErrorMsg(
+			fmt.Sprintf("%s: %s", err.OperationName, err.Err.Error()))
+	}
+}
+
+func readNotificationChAndWriteToStdout(notificationCh chan operations.OperationNotification) {
+	for notification := range notificationCh {
+		var operationStatus string
+		switch notification.OperationStatus {
+		case operations.StatusSkipped:
+			operationStatus = "SKIPPED"
+		case operations.StatusStarted:
+			operationStatus = "STARTED"
+		case operations.StatusFinished:
+			operationStatus = "FINISHED"
+		case operations.StatusFailed:
+			operationStatus = "FAILED"
+		}
+
+		var fileName = "-"
+		if notification.ProcessableFile != nil {
+			fileName = notification.ProcessableFile.OriginalFilename()
+		}
+
+		fmt.Println(
+			fmt.Sprintf(
+				"[%s] \033[1m%s %s\033[0m %s",
+				fileName,
+				notification.OperationName,
+				operationStatus,
+				notification.OperationStatusMessage,
+			),
+		)
+	}
 }
 
 func printlnErrorMsg(msg string) {
