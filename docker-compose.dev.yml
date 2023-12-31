@@ -25,7 +25,7 @@ services:
       - .:/go/src/github.com/capyfile/capyfile
     environment:
       VIRTUAL_HOST: 'capyfile.local'
-      CAPYFILE_SERVICE_DEFINITION_FILE: '/go/src/github.com/capyfile/capyfile/service-definition.capysvr.dev.json'
+      CAPYFILE_SERVICE_DEFINITION_FILE: '/go/src/github.com/capyfile/capyfile/service-definition.capysvr.dev.yml'
       MINIO_ACCESS_KEY_ID: minio_user_dev
       MINIO_SECRET_ACCESS_KEY: minio_password_dev
       MINIO_ENDPOINT: http://minio.local:9001/{bucket}
@@ -52,7 +52,7 @@ services:
     volumes:
       - .:/go/src/github.com/capyfile/capyfile
     environment:
-      CAPYFILE_SERVICE_DEFINITION_FILE: '/go/src/github.com/capyfile/capyfile/service-definition.capycmd.dev.json'
+      CAPYFILE_SERVICE_DEFINITION_FILE: '/go/src/github.com/capyfile/capyfile/service-definition.capycmd.dev.yml'
       # Copy your files to this directory to read them from the capycmd. Or if necessary, replace
       # the following line with the path that you want to read the files from for the development
       # purposes.
@@ -121,7 +121,7 @@ services:
           - attachments.minio.local
           - photos.minio.local
 
-  # Creates the buckets you need to run the server/cli with the `service-definition.*.dev.json`
+  # Creates the buckets you need to run the server/cli with the `service-definition.*.dev.yml`
   minio-buckets:
     image: minio/mc
     depends_on:

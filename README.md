@@ -356,8 +356,8 @@ For the development purposes, we have a docker-compose file with all necessary d
 (see `docker-compose.dev.yml`).
 
 Also, we have three service definitions for `capysvr`,`capycmd`, and `capyworker` services:
-* `service-definition.capysvr.dev.json` - prepared service definition for `capysvr`
-* `service-definition.capycmd.dev.json` - prepared service definition for `capycmd`
+* `service-definition.capysvr.dev.yml` - prepared service definition for `capysvr`
+* `service-definition.capycmd.dev.yml` - prepared service definition for `capycmd`
 * `service-definition.capyworker.dev.yml` - prepared service definition for `capyworker`
 
 And the `dev.sh` script that helps to build, run, and stop the services.
@@ -368,7 +368,7 @@ What is available for `capysvr`:
 ./dev.sh start capysvr
 
 # now capysvr is accessible on http://localhost:8024 or http://capyfile.local:8024
-# it use `service-definition.dev.json` service definition file
+# it use `service-definition.dev.yml` service definition file
 
 # If you have made some changes in the source code, you can rebuild the capysvr
 ./dev.sh rebuild capysvr
