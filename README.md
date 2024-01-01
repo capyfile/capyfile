@@ -60,6 +60,16 @@ these values:
 * `keep_files` (default) - keep the files
 * `remove_files` - remove the files
 
+If you want to process large files concurrently, you may want to look at those operation
+parameters:
+* `ioTickDelay` - delay between every attempt to retrieve the operation's input. Can be any
+  valid Go duration string, such as "10μs", "1s", "1ms", "1.5h" (default: 0).
+* `handlerTickDelay` - delay between every attempt to process the operation's input. Can be
+  any valid Go duration string, such as "10μs", "1s", "1ms", "1.5h" (default: 0).
+* `statusTickDelay` - delay between every attempt to update the operation's status. Can be
+  any valid Go duration string, such as "10μs", "1s", "1ms", "1.5h" (default: 0).
+* `maxPacketSize` - maximum size of the operation's input, which is the number of files 
+  the operation can process at once (default: 0 - unlimited).
 
 ### 2. Run the file processing pipeline.
 
@@ -84,7 +94,7 @@ This service definition setting up a pipeline that reads the log files from the 
 uploads the files that are older than 30 days to S3-compatible storage and removes them.
 ```yaml
 ---
-version: '1.1'
+version: '1.2'
 name: logs
 processors:
   - name: archive
@@ -134,7 +144,7 @@ docker run \
     --env AWS_LOGS_BUCKET=logs \
     --secret aws_access_key_id \
     --secret aws_secret_access_key \
-    capyfile/capycmd:latest logs:archive
+    capyfile/capycmd:latest --concurrency logs:archive
 ```
 
 The command produces the output that can look like this (the output has weird order because 
@@ -180,7 +190,7 @@ This service definition setting up a pipeline that allows .pdf, .doc and .docx f
 less than 10MB. Valid files will be uploaded to S3-compatible storage.
 ```yaml
 ---
-version: '1.1'
+version: '1.2'
 name: documents
 processors:
   - name: upload
