@@ -29,7 +29,11 @@ func TestFilesystemInputRemoveOperation_HandleFileRemove(t *testing.T) {
 		files.NewProcessableFile(file2.Name()),
 	}
 
-	operation := &FilesystemInputRemoveOperation{}
+	operation := &FilesystemInputRemoveOperation{
+		Params: &FilesystemInputRemoveOperationParams{
+			RemoveOriginalFile: false,
+		},
+	}
 	out, err := operation.Handle(in, nil, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -52,6 +56,61 @@ func TestFilesystemInputRemoveOperation_HandleFileRemove(t *testing.T) {
 		t.Fatal(err)
 	}
 	if exists2 {
+		t.Fatalf("file input has not been removed")
+	}
+}
+
+func TestFilesystemInputRemoveOperation_HandleFileRemoveWithOriginalFile(t *testing.T) {
+	capyfs.InitCopyOnWriteFilesystem()
+
+	mkDirErr := capyfs.FilesystemUtils.MkdirAll("/tmp/testdata", os.ModePerm)
+	if mkDirErr != nil {
+		t.Fatal(mkDirErr)
+	}
+
+	origFile, origFileErr := capyfs.FilesystemUtils.Create("/tmp/testdata/file1.txt")
+	if origFileErr != nil {
+		t.Fatal(origFileErr)
+	}
+	file, fileErr := capyfs.FilesystemUtils.Create("/tmp/testdata/file2.txt")
+	if fileErr != nil {
+		t.Fatal(fileErr)
+	}
+
+	pf := files.NewProcessableFile(origFile.Name())
+	pf.ReplaceFile(file.Name())
+
+	in := []files.ProcessableFile{
+		pf,
+	}
+
+	operation := &FilesystemInputRemoveOperation{
+		Params: &FilesystemInputRemoveOperationParams{
+			RemoveOriginalFile: true,
+		},
+	}
+	out, err := operation.Handle(in, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(out) != 0 {
+		t.Fatalf("len(out) = %d, want 0", len(out))
+	}
+
+	origFileExists, origFileExistsErr := capyfs.FilesystemUtils.Exists("/tmp/testdata/file1.txt")
+	if origFileExistsErr != nil {
+		t.Fatal(origFileExistsErr)
+	}
+	if origFileExists {
+		t.Fatalf("original file input has not been removed")
+	}
+
+	fileExists, fileExistsErr := capyfs.FilesystemUtils.Exists("/tmp/testdata/file2.txt")
+	if fileExistsErr != nil {
+		t.Fatal(fileExistsErr)
+	}
+	if fileExists {
 		t.Fatalf("file input has not been removed")
 	}
 }

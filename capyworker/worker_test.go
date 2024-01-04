@@ -39,6 +39,12 @@ var testServiceDefinition = capysvc.Service{
 				{
 					Name:        "filesystem_input_remove",
 					TargetFiles: "with_errors",
+					Params: map[string]parameters.Parameter{
+						"removeOriginalFile": {
+							SourceType: "value",
+							Source:     false,
+						},
+					},
 				},
 			},
 		},

@@ -13,6 +13,9 @@ type FilesystemInputRemoveOperation struct {
 }
 
 type FilesystemInputRemoveOperationParams struct {
+	// If set to true, the original file will be removed along with the current
+	// processable file.
+	RemoveOriginalFile bool
 }
 
 func (o *FilesystemInputRemoveOperation) OperationName() string {
@@ -54,12 +57,34 @@ func (o *FilesystemInputRemoveOperation) Handle(
 					errorCh <- o.errorBuilder().ProcessableFileError(pf, removeErr)
 				}
 				if notificationCh != nil {
-					notificationCh <- o.notificationBuilder().Failed("file remove failed with the error", pf, removeErr)
+					notificationCh <- o.notificationBuilder().Failed(
+						"file remove failed with the error", pf, removeErr)
 				}
 
 				outHolder.AppendToOut(pf)
 
 				return
+			}
+
+			if o.Params.RemoveOriginalFile && pf.OriginalProcessableFile != nil {
+				origRemoveErr := capyfs.Filesystem.Remove(pf.OriginalProcessableFile.Name())
+				if origRemoveErr != nil {
+					pf.SetFileProcessingError(
+						NewFileInputIsUnwritableError(origRemoveErr),
+					)
+
+					if errorCh != nil {
+						errorCh <- o.errorBuilder().ProcessableFileError(pf, origRemoveErr)
+					}
+					if notificationCh != nil {
+						notificationCh <- o.notificationBuilder().Failed(
+							"original file remove failed with the error", pf, origRemoveErr)
+					}
+
+					outHolder.AppendToOut(pf)
+
+					return
+				}
 			}
 
 			if notificationCh != nil {

@@ -643,7 +643,11 @@ func (o *Operation) Handler(ctx Context) (operations.OperationHandler, error) {
 		)
 		break
 	case "filesystem_input_remove":
-		oh, ohErr = opfactories.NewFilesystemInputRemoveOperation(o.Name)
+		oh, ohErr = opfactories.NewFilesystemInputRemoveOperation(
+			o.Name,
+			o.Params,
+			parameterLoaderProvider,
+		)
 		break
 	case "command_exec":
 		oh, ohErr = opfactories.NewCommandExecOperation(
