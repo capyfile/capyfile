@@ -27,6 +27,7 @@ Available operations are:
 * `filesystem_input_read` - read the files from the filesystem
 * `filesystem_input_write` - write the files to the filesystem
 * `filesystem_input_remove` - remove the files from the filesystem
+* `filesystem_input_forget` - forget the files
 * `file_size_validate` - check file size
 * `file_type_validate` - check file MIME type
 * `file_time_validate` - check file time stat

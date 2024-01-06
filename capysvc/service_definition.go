@@ -649,6 +649,9 @@ func (o *Operation) Handler(ctx Context) (operations.OperationHandler, error) {
 			parameterLoaderProvider,
 		)
 		break
+	case "input_forget":
+		oh, ohErr = opfactories.NewInputForgetOperation(o.Name)
+		break
 	case "command_exec":
 		oh, ohErr = opfactories.NewCommandExecOperation(
 			o.Name,
