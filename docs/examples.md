@@ -187,19 +187,19 @@ ETCD_PASSWORD=etcd_password
 Now it is ready to accept and process the files.
 ```bash
 # upload and process single file
-curl -F "file1=@$HOME/Documents/document.pdf" http://localhost/upload/document 
+curl -F "file1=@$HOME/Documents/document.pdf" http://localhost/documents/upload 
 
 # upload and process request body
-curl --data-binary "@$HOME/Documents/document.pdf" http://localhost/upload/document 
+curl --data-binary "@$HOME/Documents/document.pdf" http://localhost/documents/upload 
 
 # upload and process multiple files
-curl -F "file1=@$HOME/Documents/document.pdf" http://localhost/upload/document 
+curl -F "file1=@$HOME/Documents/document.pdf" http://localhost/documents/upload 
 curl \
     -F "file1=@$HOME/Documents/document.pdf" \
-    -F "file3=@$HOME/Documents/document.docx" \
+    -F "file2=@$HOME/Documents/document.docx" \
     -F "file3=@$HOME/Documents/very-big-document.pdf" \
     -F "file4=@$HOME/Documents/program.run" \
-    http://localhost/upload/document 
+    http://localhost/documents/upload 
 ```
 
 The service returns json response of this format (example for multiple files upload above):
