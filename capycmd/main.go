@@ -38,7 +38,7 @@ define and run your own file processing pipelines.
 Usage: [-f <service-definition-file>] <service-processor>
 
 Options:
-	-f, --service-definition=<service-definition-file> Path to the service definition file
+    -f, --service-definition=<service-definition-file> Path to the service definition file
     -c, --concurrency Run the pipeline in the concurrent mode
 
 Examples:
