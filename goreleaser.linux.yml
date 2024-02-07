@@ -4,8 +4,6 @@ builds:
   - id: capysvr
     binary: capysvr
     main: ./capysvr
-    env:
-      - CGO_ENABLED=0
     goos:
       - linux
     goarch:
@@ -14,8 +12,6 @@ builds:
   - id: capycmd
     binary: capycmd
     main: ./capycmd
-    env:
-      - CGO_ENABLED=0
     goos:
       - linux
     goarch:
@@ -24,8 +20,6 @@ builds:
   - id: capyworker
     binary: capyworker
     main: ./capyworker
-    env:
-      - CGO_ENABLED=0
     goos:
       - linux
     goarch:

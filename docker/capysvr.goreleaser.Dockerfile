@@ -6,6 +6,7 @@ RUN set -x -o pipefail \
     && apk update \
     && apk upgrade \
     && apk add \
+    libc6-compat \
     exiftool \
     zlib libxml2 glib gobject-introspection \
     libjpeg-turbo libexif lcms2 fftw giflib libpng \
