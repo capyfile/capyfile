@@ -137,7 +137,11 @@ func (p *Processor) RunOperationsConcurrently(
 		completeWg sync.WaitGroup
 	)
 
-	outputHolder := newOutputHolder()
+	firstOp, lastOp := p.firstAndLastOperations()
+
+	if len(in) > 0 {
+		firstOp.operationState.io.in = in
+	}
 
 	for i := range p.Operations {
 		op := &p.Operations[i]
@@ -148,14 +152,7 @@ func (p *Processor) RunOperationsConcurrently(
 				errorCh <- operations.NewOperationError(op.Name, handlerErr)
 			}
 
-			return outputHolder.Out(), handlerErr
-		}
-
-		if i == 0 {
-			// If this is the first operation, we need to pass the initial input to the operation.
-			if len(in) != 0 {
-				op.operationState.io.enqueueInput(in...)
-			}
+			return nil, handlerErr
 		}
 
 		// The below stuff is quite simple. We have 3 goroutines that are running concurrently:
@@ -171,25 +168,7 @@ func (p *Processor) RunOperationsConcurrently(
 			nextOp := op.operationState.nextOperation
 
 			if nextOp == nil {
-				// If this is the last operation, then all we need to do is dequeue the
-				// output to the final output holder.
-				for !op.operationState.Completed {
-					if op.operationState.io.isOutputQueueEmpty() {
-						op.IOTick()
-
-						continue
-					}
-
-					// todo: check the out of the last operation
-					op.operationState.io.dequeueOutput(
-						func(out []files.ProcessableFile) {
-							outputHolder.Append(out...)
-						},
-					)
-
-					op.IOTick()
-				}
-
+				// If this is the last operation, we don't need to dequeue the output anywhere.
 				return
 			}
 
@@ -322,7 +301,234 @@ func (p *Processor) RunOperationsConcurrently(
 	procWg.Wait()
 	completeWg.Wait()
 
-	return outputHolder.Out(), nil
+	return lastOp.operationState.io.out, nil
+}
+
+func (s *Service) RunProcessorConcurrentlyWithEventBasedConcurrencyAlgorithm(
+	ctx Context,
+	processorName string,
+	in []files.ProcessableFile,
+	errorCh chan<- operations.OperationError,
+	notificationCh chan<- operations.OperationNotification,
+) (out []files.ProcessableFile, err error) {
+	proc := s.FindProcessor(processorName)
+	if proc == nil {
+		return out, capyerr.NewProcessorNotFoundError(processorName)
+	}
+
+	iniOpsErr := proc.InitOperations(ctx)
+	if iniOpsErr != nil {
+		return out, iniOpsErr
+	}
+
+	return proc.RunOperationsConcurrentlyWithEventBasedConcurrencyAlgorithm(
+		ctx,
+		in,
+		errorCh,
+		notificationCh,
+	)
+}
+
+func (p *Processor) RunOperationsConcurrentlyWithEventBasedConcurrencyAlgorithm(
+	ctx Context,
+	in []files.ProcessableFile,
+	errorCh chan<- operations.OperationError,
+	notificationCh chan<- operations.OperationNotification,
+) ([]files.ProcessableFile, error) {
+	type opCh struct {
+		inputCh    chan struct{}
+		processCh  chan struct{}
+		outputCh   chan struct{}
+		completeCh chan struct{}
+	}
+	opChs := make([]opCh, len(p.Operations))
+
+	completeWg := &sync.WaitGroup{}
+
+	for i := range p.Operations {
+		op := &p.Operations[i]
+
+		handler, handlerErr := op.Handler(ctx)
+		if handlerErr != nil {
+			if errorCh != nil {
+				errorCh <- operations.NewOperationError(op.Name, handlerErr)
+			}
+
+			return nil, handlerErr
+		}
+
+		opChs[i] = opCh{
+			inputCh:    make(chan struct{}),
+			processCh:  make(chan struct{}),
+			outputCh:   make(chan struct{}),
+			completeCh: make(chan struct{}),
+		}
+
+		go func(opIdx int) {
+			for {
+				select {
+				case <-opChs[opIdx].inputCh:
+					// If this is not a concurrent operation, we just stack the input,
+					// so it will be processed when the previous operation is completed.
+					if !handler.AllowConcurrency() {
+						// If this is not the first operation, and the previous
+						// operation is not completed, then we can just return, so
+						// the current operation will continue to collect the input.
+						prevOp := op.operationState.prevOperation
+						if prevOp != nil && !prevOp.operationState.Completed {
+							continue
+						}
+					}
+
+					opChs[opIdx].processCh <- struct{}{}
+				}
+			}
+		}(i)
+
+		go func(opIdx int) {
+			for {
+				select {
+				case <-opChs[opIdx].processCh:
+					op.operationState.io.process(0, func(in []files.ProcessableFile) (out []files.ProcessableFile) {
+						targetIn, skipIn := splitIntoTargetSkip(op.TargetFiles, in)
+
+						var handleOut []files.ProcessableFile
+						var handleErr error
+
+						if op.MaxPacketSize > 0 {
+							// Here we are chunking the input into the pieces based on the max packet size.
+							var chunks [][]files.ProcessableFile
+							for op.MaxPacketSize < len(targetIn) {
+								targetIn, chunks = targetIn[op.MaxPacketSize:], append(chunks, targetIn[0:op.MaxPacketSize:op.MaxPacketSize])
+							}
+							chunks = append(chunks, targetIn)
+
+							// Right now we process the chunks in parallel.
+							wg := &sync.WaitGroup{}
+							l := &sync.Mutex{}
+							for _, chunk := range chunks {
+								wg.Add(1)
+								go func(chunk []files.ProcessableFile) {
+									defer wg.Done()
+
+									chunkHandleOut, chunkHandleErr := handler.Handle(chunk, errorCh, notificationCh)
+									if chunkHandleErr != nil {
+										if errorCh != nil {
+											errorCh <- operations.NewOperationInputError(op.Name, chunk, chunkHandleErr)
+										}
+
+										return
+									}
+
+									l.Lock()
+									handleOut = append(handleOut, chunkHandleOut...)
+									l.Unlock()
+								}(chunk)
+							}
+							wg.Wait()
+						} else {
+							handleOut, handleErr = handler.Handle(targetIn, errorCh, notificationCh)
+							if handleErr != nil {
+								// Perhaps maybe this is something that is related to the specific file,
+								// so we can just send an error to the channel and continue.
+								if errorCh != nil {
+									errorCh <- operations.NewOperationInputError(op.Name, targetIn, handleErr)
+								}
+
+								return out
+							}
+						}
+
+						if len(skipIn) > 0 {
+							if notificationCh != nil {
+								for _, pf := range skipIn {
+									notificationCh <- operations.NewSkippedOperationNotification(op.Name, op.TargetFiles, &pf)
+								}
+							}
+
+							out = skipIn
+						}
+
+						if len(handleOut) > 0 {
+							assignCleanupPolicy(op.CleanupPolicy, handleOut)
+
+							out = append(out, handleOut...)
+						}
+
+						return out
+					})
+
+					opChs[opIdx].outputCh <- struct{}{}
+				}
+			}
+		}(i)
+
+		go func(opIdx int) {
+			for {
+				select {
+				case <-opChs[opIdx].outputCh:
+					// Pass the output to the next operation's input.
+					nextOp := op.operationState.nextOperation
+					if nextOp != nil {
+						op.operationState.io.dequeueOutput(
+							func(out []files.ProcessableFile) {
+								nextOp.operationState.io.enqueueInput(out...)
+							},
+						)
+
+						opChs[opIdx].completeCh <- struct{}{}
+						opChs[opIdx+1].inputCh <- struct{}{}
+					} else {
+						opChs[opIdx].completeCh <- struct{}{}
+					}
+				}
+			}
+		}(i)
+
+		completeWg.Add(1)
+		go func(opIdx int) {
+			for {
+				select {
+				case <-opChs[opIdx].completeCh:
+					// If this is not the first operation, and the previous
+					// operation is not completed, then we can just return, so
+					// the current operation will continue to collect the input.
+					prevOp := op.operationState.prevOperation
+					if prevOp != nil && !prevOp.operationState.Completed {
+						continue
+					}
+
+					// If this is not the last operation, we need to wait while all
+					// the input/output is processed.
+					nextOp := op.operationState.nextOperation
+					if nextOp != nil {
+						if op.operationState.io.isQueueEmpty() {
+							op.operationState.complete()
+							completeWg.Done()
+						}
+
+						continue
+					}
+
+					// If this is the last operation, we need to wait while the input
+					// is processed.
+					if op.operationState.io.isInputQueueEmpty() {
+						op.operationState.complete()
+						completeWg.Done()
+					}
+				}
+			}
+		}(i)
+	}
+
+	firstOp, lastOp := p.firstAndLastOperations()
+
+	firstOp.operationState.io.enqueueInput(in...)
+	opChs[0].inputCh <- struct{}{}
+
+	completeWg.Wait()
+
+	return lastOp.operationState.io.out, nil
 }
 
 // InitOperations initializes the operations before running the pipeline.
@@ -655,29 +861,4 @@ func assignCleanupPolicy(cleanupPolicy string, in []files.ProcessableFile) {
 			break
 		}
 	}
-}
-
-type outHolder struct {
-	outLock *sync.RWMutex
-	out     []files.ProcessableFile
-}
-
-func newOutputHolder() *outHolder {
-	return &outHolder{
-		outLock: &sync.RWMutex{},
-	}
-}
-
-func (o *outHolder) Append(pf ...files.ProcessableFile) {
-	o.outLock.Lock()
-	defer o.outLock.Unlock()
-
-	o.out = append(o.out, pf...)
-}
-
-func (o *outHolder) Out() []files.ProcessableFile {
-	o.outLock.RLock()
-	defer o.outLock.RUnlock()
-
-	return o.out
 }
