@@ -106,6 +106,7 @@ func (f *ProcessableFile) loadMime() (err error) {
 	if fileOpenErr != nil {
 		return err
 	}
+	defer file.Close()
 
 	f.mime, err = mimetype.DetectReader(file)
 

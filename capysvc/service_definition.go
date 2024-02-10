@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -155,7 +154,7 @@ func (p *Processor) RunOperationsConcurrently(
 		if i == 0 {
 			// If this is the first operation, we need to pass the initial input to the operation.
 			if len(in) != 0 {
-				op.operationState.io.enqueueIn(in...)
+				op.operationState.io.enqueueInput(in...)
 			}
 		}
 
@@ -175,7 +174,14 @@ func (p *Processor) RunOperationsConcurrently(
 				// If this is the last operation, then all we need to do is dequeue the
 				// output to the final output holder.
 				for !op.operationState.Completed {
-					op.operationState.io.dequeueOut(
+					if op.operationState.io.isOutputQueueEmpty() {
+						op.IOTick()
+
+						continue
+					}
+
+					// todo: check the out of the last operation
+					op.operationState.io.dequeueOutput(
 						func(out []files.ProcessableFile) {
 							outputHolder.Append(out...)
 						},
@@ -188,9 +194,15 @@ func (p *Processor) RunOperationsConcurrently(
 			}
 
 			for !op.operationState.Completed {
-				op.operationState.io.dequeueOut(
+				if op.operationState.io.isOutputQueueEmpty() {
+					op.IOTick()
+
+					continue
+				}
+
+				op.operationState.io.dequeueOutput(
 					func(out []files.ProcessableFile) {
-						nextOp.operationState.io.enqueueIn(out...)
+						nextOp.operationState.io.enqueueInput(out...)
 					},
 				)
 
@@ -237,7 +249,13 @@ func (p *Processor) RunOperationsConcurrently(
 			if handler.AllowConcurrency() {
 				// If this is a concurrent operation, we run it until it's completed.
 				for !op.operationState.Completed {
-					op.operationState.io.processIn(op.MaxPacketSize, handleFn)
+					if op.operationState.io.procCnt > 0 && op.operationState.io.isInputQueueEmpty() {
+						op.HandlerTick()
+
+						continue
+					}
+
+					op.operationState.io.process(op.MaxPacketSize, handleFn)
 
 					op.HandlerTick()
 				}
@@ -255,7 +273,7 @@ func (p *Processor) RunOperationsConcurrently(
 					op.HandlerTick()
 				}
 			}
-			op.operationState.io.processIn(0, handleFn)
+			op.operationState.io.process(0, handleFn)
 		}(op)
 
 		// Complete the operation when no input is expected for it.
@@ -265,18 +283,34 @@ func (p *Processor) RunOperationsConcurrently(
 
 			// The operation must be run at least once. Only after this it makes sense to
 			// check whether the operation can be completed or not.
-			for op.operationState.io.procCnt.Load() == 0 {
+			for op.operationState.io.procCnt == 0 {
 				op.StatusTick()
 			}
 
 			prevOp := op.operationState.prevOperation
-			for !op.operationState.Completed {
+			if prevOp != nil {
 				// If this is not the first operation, we need to ensure that the previous one is completed.
-				if prevOp == nil || prevOp.operationState.Completed {
-					if op.operationState.io.isEmpty() {
+				for !prevOp.operationState.Completed {
+					op.StatusTick()
+				}
+			}
+
+			nextOp := op.operationState.nextOperation
+			if nextOp != nil {
+				for !op.operationState.Completed {
+					if op.operationState.io.isQueueEmpty() {
 						op.operationState.complete()
 						return
 					}
+
+					op.StatusTick()
+				}
+			}
+
+			for !op.operationState.Completed {
+				if op.operationState.io.isInputQueueEmpty() {
+					op.operationState.complete()
+					return
 				}
 
 				op.StatusTick()
@@ -451,105 +485,15 @@ func (o *Operation) StatusTick() {
 	time.Sleep(o.statusTickDelayDuration)
 }
 
-type operationState struct {
-	// Manages the input and output of the operation.
-	io *ioManager
-
-	completedLock *sync.Mutex
-	// Whether the operation is completed which means that there is no more input
-	// for the operation and all the input is processed.
-	Completed bool
-
-	// Here we are holding the initialized operation handlers.
-	// Should be modified if you want to reload parameters more often.
-	handlerLock *sync.Mutex
-	handler     operations.OperationHandler
-
-	prevOperation *Operation
-	nextOperation *Operation
-}
-
-// Provides the basic methods to manage the operation's input and output.
-type ioManager struct {
-	inOutLock *sync.RWMutex
-	in        []files.ProcessableFile
-	out       []files.ProcessableFile
-
-	procCnt *atomic.Uint32
-}
-
-func (m *ioManager) isEmpty() bool {
-	m.inOutLock.RLock()
-	defer m.inOutLock.RUnlock()
-
-	return len(m.in) == 0 && len(m.out) == 0
-}
-
-func (m *ioManager) enqueueIn(pf ...files.ProcessableFile) {
-	m.inOutLock.Lock()
-	defer m.inOutLock.Unlock()
-
-	m.in = append(m.in, pf...)
-}
-
-func (m *ioManager) processIn(
-	inSize int,
-	f func(in []files.ProcessableFile) (out []files.ProcessableFile),
-) {
-	m.inOutLock.Lock()
-	defer m.inOutLock.Unlock()
-
-	var in []files.ProcessableFile
-	if inSize == 0 {
-		in = m.in
-		m.in = nil
-	} else {
-		if len(m.in) < inSize {
-			inSize = len(m.in)
-		}
-
-		in = m.in[:inSize]
-		m.in = m.in[inSize:]
-	}
-
-	out := f(in)
-
-	m.out = append(m.out, out...)
-
-	m.procCnt.Add(1)
-}
-
-func (m *ioManager) dequeueOut(
-	f func(out []files.ProcessableFile),
-) {
-	m.inOutLock.Lock()
-	defer m.inOutLock.Unlock()
-
-	if len(m.out) == 0 {
-		return
-	}
-
-	f(m.out)
-
-	m.out = nil
-}
-
 func (o *Operation) Reset() {
 	o.operationState = &operationState{
 		io: &ioManager{
 			inOutLock: &sync.RWMutex{},
-			procCnt:   &atomic.Uint32{},
+			procCnt:   0,
 		},
 		completedLock: &sync.Mutex{},
 		handlerLock:   &sync.Mutex{},
 	}
-}
-
-func (o *operationState) complete() {
-	o.completedLock.Lock()
-	defer o.completedLock.Unlock()
-
-	o.Completed = true
 }
 
 func (o *Operation) Handler(ctx Context) (operations.OperationHandler, error) {
