@@ -48,7 +48,7 @@ func (s *Service) RunProcessor(
 	return proc.RunOperations(ctx, in, errorCh, notificationCh)
 }
 
-func (s *Service) RunProcessorConcurrently(
+func (s *Service) RunProcessorConcurrentlyInLockMode(
 	ctx Context,
 	processorName string,
 	in []files.ProcessableFile,
@@ -65,7 +65,7 @@ func (s *Service) RunProcessorConcurrently(
 		return out, iniOpsErr
 	}
 
-	return proc.RunOperationsConcurrently(
+	return proc.RunOperationsConcurrentlyInLockMode(
 		ctx,
 		in,
 		errorCh,
@@ -125,7 +125,7 @@ func (p *Processor) RunOperations(
 	return lastOp.operationState.io.out, nil
 }
 
-func (p *Processor) RunOperationsConcurrently(
+func (p *Processor) RunOperationsConcurrentlyInLockMode(
 	ctx Context,
 	in []files.ProcessableFile,
 	errorCh chan<- operations.OperationError,
@@ -304,7 +304,7 @@ func (p *Processor) RunOperationsConcurrently(
 	return lastOp.operationState.io.out, nil
 }
 
-func (s *Service) RunProcessorConcurrentlyWithEventBasedConcurrencyAlgorithm(
+func (s *Service) RunProcessorConcurrentlyInEventMode(
 	ctx Context,
 	processorName string,
 	in []files.ProcessableFile,
@@ -321,7 +321,7 @@ func (s *Service) RunProcessorConcurrentlyWithEventBasedConcurrencyAlgorithm(
 		return out, iniOpsErr
 	}
 
-	return proc.RunOperationsConcurrentlyWithEventBasedConcurrencyAlgorithm(
+	return proc.RunOperationsConcurrentlyInEventMode(
 		ctx,
 		in,
 		errorCh,
@@ -329,7 +329,7 @@ func (s *Service) RunProcessorConcurrentlyWithEventBasedConcurrencyAlgorithm(
 	)
 }
 
-func (p *Processor) RunOperationsConcurrentlyWithEventBasedConcurrencyAlgorithm(
+func (p *Processor) RunOperationsConcurrentlyInEventMode(
 	ctx Context,
 	in []files.ProcessableFile,
 	errorCh chan<- operations.OperationError,

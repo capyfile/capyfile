@@ -20,6 +20,10 @@ func main() {
 	flag.BoolVar(&concurrency, "concurrency", false, "Use concurrency mode")
 	flag.BoolVar(&concurrency, "c", false, "Run the pipeline in the concurrent mode")
 
+	var concurrencyMode string
+	flag.StringVar(&concurrencyMode, "concurrency-mode", "event", "Concurrency mode to use")
+	flag.StringVar(&concurrencyMode, "m", "event", "Concurrency mode to use")
+
 	var sleepTime int
 	flag.IntVar(&sleepTime, "sleep", 0, "Sleep time in seconds between each iteration of the worker")
 	flag.IntVar(&sleepTime, "s", 0, "Sleep time in seconds between each iteration of the worker")
@@ -52,6 +56,7 @@ Usage: [-f <service-definition-file>] <service-processor>
 Options:
     -f, --service-definition=<service-definition-file> Path to the service definition file
 	-c, --concurrency Run the pipeline in the concurrency mode
+    -m, --concurrency-mode=<event|lock> Concurrency mode to use
     -s, --sleep=<sleep-time> Sleep time in seconds between each iteration of the worker
     -i, --max-iterations=<max-iterations> Maximum number of worker iterations
     -l, --log-file=<log-file> Log file
@@ -71,6 +76,7 @@ Date: ` + date + `
 	worker := &Worker{
 		ServiceDefinitionFile: serviceDefinitionFile,
 		Concurrency:           concurrency,
+		ConcurrencyMode:       concurrencyMode,
 		SleepTime:             sleepTime,
 		MaxIterations:         maxIterations,
 		LogFile:               logFile,

@@ -20,6 +20,10 @@ func main() {
 	flag.BoolVar(&concurrency, "concurrency", false, "Run the pipeline in the concurrent mode")
 	flag.BoolVar(&concurrency, "c", false, "Run the pipeline in the concurrent mode")
 
+	var concurrencyMode string
+	flag.StringVar(&concurrencyMode, "concurrency-mode", "event", "Concurrency mode to use")
+	flag.StringVar(&concurrencyMode, "m", "event", "Concurrency mode to use")
+
 	flag.Parse()
 
 	args := flag.Args()
@@ -40,6 +44,7 @@ Usage: [-f <service-definition-file>] <service-processor>
 Options:
     -f, --service-definition=<service-definition-file> Path to the service definition file
     -c, --concurrency Run the pipeline in the concurrent mode
+    -m, --concurrency-mode=<event|lock> Concurrency mode to use
 
 Examples:
     $ capycmd -f service-definition.yml logs:compress
@@ -58,6 +63,7 @@ Date: ` + date + `
 	cli := &Cli{
 		ServiceDefinitionFile: serviceDefinitionFile,
 		Concurrency:           concurrency,
+		ConcurrencyMode:       concurrencyMode,
 	}
 
 	initErr := cli.Init()

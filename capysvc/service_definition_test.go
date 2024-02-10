@@ -85,7 +85,7 @@ func BenchmarkService_RunProcessorConcurrently(b *testing.B) {
 	sd := benchmarkServiceDefinition()
 
 	for i := 0; i < b.N; i++ {
-		procOut, procErr := sd.RunProcessorConcurrently(
+		procOut, procErr := sd.RunProcessorConcurrentlyInLockMode(
 			NewCliContext(),
 			"validate",
 			[]files.ProcessableFile{},
@@ -134,7 +134,7 @@ func BenchmarkService_RunProcessorConcurrentlyWithEventBasedConcurrencyAlgorithm
 	sd := benchmarkServiceDefinition()
 
 	for i := 0; i < b.N; i++ {
-		procOut, procErr := sd.RunProcessorConcurrentlyWithEventBasedConcurrencyAlgorithm(
+		procOut, procErr := sd.RunProcessorConcurrentlyInEventMode(
 			NewCliContext(),
 			"validate",
 			[]files.ProcessableFile{},
@@ -334,7 +334,7 @@ func TestService_RunProcessorsConcurrentlyWithServerContext(t *testing.T) {
 
 	sd := testServiceDefinitionForServerContext()
 
-	out, err := sd.RunProcessorConcurrently(
+	out, err := sd.RunProcessorConcurrentlyInLockMode(
 		NewServerContext(req, nil),
 		"photo",
 		in,
@@ -404,7 +404,7 @@ func TestService_RunProcessorsConcurrentlyWithCliContext(t *testing.T) {
 
 	sd := testServiceDefinitionForCliContext()
 
-	out, err := sd.RunProcessorConcurrently(
+	out, err := sd.RunProcessorConcurrentlyInLockMode(
 		NewCliContext(),
 		"photo",
 		in,
@@ -448,7 +448,7 @@ func TestService_RunProcessorsConcurrentlyWithEmptyInput(t *testing.T) {
 
 	sd := testServiceDefinitionForCliContext()
 
-	out, err := sd.RunProcessorConcurrently(
+	out, err := sd.RunProcessorConcurrentlyInLockMode(
 		NewCliContext(),
 		"photo",
 		[]files.ProcessableFile{},
@@ -496,7 +496,7 @@ func TestService_RunProcessorsConcurrentlyWithCliContextChannelBased(t *testing.
 
 	sd := testServiceDefinitionForCliContext()
 
-	out, err := sd.RunProcessorConcurrentlyWithEventBasedConcurrencyAlgorithm(
+	out, err := sd.RunProcessorConcurrentlyInEventMode(
 		NewCliContext(),
 		"photo",
 		in,
