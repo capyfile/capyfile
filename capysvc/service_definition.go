@@ -476,8 +476,8 @@ func (p *Processor) RunOperationsConcurrentlyInEventMode(
 							},
 						)
 
-						opChs[opIdx].completeCh <- struct{}{}
 						opChs[opIdx+1].inputCh <- struct{}{}
+						opChs[opIdx].completeCh <- struct{}{}
 					} else {
 						opChs[opIdx].completeCh <- struct{}{}
 					}
