@@ -53,7 +53,7 @@ func benchmarkServiceDefinition() Service {
 	}
 }
 
-func BenchmarkService_RunProcessorConcurrently(b *testing.B) {
+func BenchmarkService_RunProcessorConcurrentlyInLockMode(b *testing.B) {
 	capyfs.InitCopyOnWriteFilesystem()
 
 	sizes := []int{1, 3, 5, 7, 10}
@@ -102,7 +102,7 @@ func BenchmarkService_RunProcessorConcurrently(b *testing.B) {
 	}
 }
 
-func BenchmarkService_RunProcessorConcurrentlyWithEventBasedConcurrencyAlgorithm(b *testing.B) {
+func BenchmarkService_RunProcessorConcurrentlyInEventMode(b *testing.B) {
 	capyfs.InitCopyOnWriteFilesystem()
 
 	sizes := []int{1, 3, 5, 7, 10}
@@ -465,7 +465,7 @@ func TestService_RunProcessorsConcurrentlyWithEmptyInput(t *testing.T) {
 	}
 }
 
-func TestService_RunProcessorsConcurrentlyWithCliContextChannelBased(t *testing.T) {
+func TestService_RunProcessorsConcurrentlyInEventMode(t *testing.T) {
 	capyfs.InitCopyOnWriteFilesystem()
 
 	imageFile, err := capyfs.Filesystem.Open("testdata/image_512x512.jpg")
