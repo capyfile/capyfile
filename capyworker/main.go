@@ -55,7 +55,7 @@ Usage: [-f <service-definition-file>] <service-processor>
 
 Options:
     -f, --service-definition=<service-definition-file> Path to the service definition file
-	-c, --concurrency Run the pipeline in the concurrency mode
+    -c, --concurrency Run the pipeline in the concurrency mode
     -m, --concurrency-mode=<event|lock> Concurrency mode to use
     -s, --sleep=<sleep-time> Sleep time in seconds between each iteration of the worker
     -i, --max-iterations=<max-iterations> Maximum number of worker iterations
