@@ -17,12 +17,17 @@ func main() {
 	flag.BoolVar(&concurrency, "concurrency", false, "Run the pipeline in the concurrent mode")
 	flag.BoolVar(&concurrency, "c", false, "Run the pipeline in the concurrent mode")
 
+	var concurrencyMode string
+	flag.StringVar(&concurrencyMode, "concurrency-mode", "event", "Concurrency mode to use")
+	flag.StringVar(&concurrencyMode, "m", "event", "Concurrency mode to use")
+
 	flag.Parse()
 
 	server := &Server{
 		Addr:                  ":8024",
 		ServiceDefinitionFile: serviceDefinitionFile,
 		Concurrency:           concurrency,
+		ConcurrencyMode:       concurrencyMode,
 	}
 
 	serverInitErr := server.Init()

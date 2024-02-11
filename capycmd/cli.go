@@ -13,6 +13,7 @@ import (
 type Cli struct {
 	ServiceDefinitionFile string
 	Concurrency           bool
+	ConcurrencyMode       string
 }
 
 func (s *Cli) Init() error {
@@ -74,14 +75,29 @@ func (s *Cli) Run(serviceProcessor string) error {
 
 	var out []files.ProcessableFile
 	var procErr error
-	if !s.Concurrency {
-		out, procErr = svc.RunProcessorConcurrently(
-			capysvc.NewCliContext(),
-			proc.Name,
-			[]files.ProcessableFile{},
-			errorCh,
-			notificationCh,
-		)
+	if s.Concurrency {
+		switch s.ConcurrencyMode {
+		case "event":
+			out, procErr = svc.RunProcessorConcurrentlyInEventMode(
+				capysvc.NewCliContext(),
+				proc.Name,
+				[]files.ProcessableFile{},
+				errorCh,
+				notificationCh,
+			)
+		case "lock":
+			out, procErr = svc.RunProcessorConcurrentlyInLockMode(
+				capysvc.NewCliContext(),
+				proc.Name,
+				[]files.ProcessableFile{},
+				errorCh,
+				notificationCh,
+			)
+		default:
+			printlnErrorMsg("Invalid concurrency mode provided")
+			return nil
+
+		}
 	} else {
 		out, procErr = svc.RunProcessor(
 			capysvc.NewCliContext(),

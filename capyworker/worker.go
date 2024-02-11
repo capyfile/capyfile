@@ -19,6 +19,7 @@ import (
 type Worker struct {
 	ServiceDefinitionFile string
 	Concurrency           bool
+	ConcurrencyMode       string
 	SleepTime             int
 	MaxIterations         int
 	LogFile               string
@@ -92,13 +93,27 @@ func (s *Worker) Run(serviceProcessor string) error {
 			var out []files.ProcessableFile
 			var procErr error
 			if s.Concurrency {
-				out, procErr = svc.RunProcessorConcurrently(
-					capysvc.NewWorkerContext(common.EtcdClient),
-					proc.Name,
-					[]files.ProcessableFile{},
-					errorCh,
-					notificationCh,
-				)
+				switch s.ConcurrencyMode {
+				case "event":
+					out, procErr = svc.RunProcessorConcurrentlyInEventMode(
+						capysvc.NewWorkerContext(common.EtcdClient),
+						proc.Name,
+						[]files.ProcessableFile{},
+						errorCh,
+						notificationCh,
+					)
+				case "lock":
+					out, procErr = svc.RunProcessorConcurrentlyInLockMode(
+						capysvc.NewWorkerContext(common.EtcdClient),
+						proc.Name,
+						[]files.ProcessableFile{},
+						errorCh,
+						notificationCh,
+					)
+				default:
+					fmt.Println("error: invalid concurrency mode provided")
+					return nil
+				}
 			} else {
 				out, procErr = svc.RunProcessor(
 					capysvc.NewWorkerContext(common.EtcdClient),

@@ -97,7 +97,8 @@ func TestProcessFiles(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	s := Server{
-		Concurrency: true,
+		Concurrency:     true,
+		ConcurrencyMode: "event",
 	}
 	s.Handler(w, req)
 

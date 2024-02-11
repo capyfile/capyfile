@@ -53,7 +53,7 @@ func benchmarkServiceDefinition() Service {
 	}
 }
 
-func BenchmarkService_RunProcessorConcurrently(b *testing.B) {
+func BenchmarkService_RunProcessorConcurrentlyInLockMode(b *testing.B) {
 	capyfs.InitCopyOnWriteFilesystem()
 
 	sizes := []int{1, 3, 5, 7, 10}
@@ -85,7 +85,56 @@ func BenchmarkService_RunProcessorConcurrently(b *testing.B) {
 	sd := benchmarkServiceDefinition()
 
 	for i := 0; i < b.N; i++ {
-		procOut, procErr := sd.RunProcessorConcurrently(
+		procOut, procErr := sd.RunProcessorConcurrentlyInLockMode(
+			NewCliContext(),
+			"validate",
+			[]files.ProcessableFile{},
+			nil,
+			nil,
+		)
+		if procErr != nil {
+			b.Fatalf("expected error to be nil, got %v", procErr)
+		}
+
+		if len(procOut) != len(sizes)*filesPerSize {
+			b.Fatalf("len(procOut) = %d, want %d", len(procOut), len(sizes)*filesPerSize)
+		}
+	}
+}
+
+func BenchmarkService_RunProcessorConcurrentlyInEventMode(b *testing.B) {
+	capyfs.InitCopyOnWriteFilesystem()
+
+	sizes := []int{1, 3, 5, 7, 10}
+	filesPerSize := 100
+
+	mkdirErr := capyfs.FilesystemUtils.MkdirAll("/tmp/testdata", 0755)
+	if mkdirErr != nil {
+		b.Fatalf("expected error to be nil, got %v", mkdirErr)
+	}
+
+	for _, sizeKb := range sizes {
+		for i := 0; i < filesPerSize; i++ {
+			buf := make([]byte, sizeKb*1024)
+			_, readErr := rand.Read(buf)
+			if readErr != nil {
+				b.Fatalf("expected error to be nil, got %v", readErr)
+			}
+
+			fileWriteErr := capyfs.FilesystemUtils.WriteFile(
+				fmt.Sprintf("/tmp/testdata/file_%dkb_%d.bin", sizeKb, i),
+				buf,
+				0644)
+			if fileWriteErr != nil {
+				b.Fatalf("expected error to be nil, got %v", fileWriteErr)
+			}
+		}
+	}
+
+	sd := benchmarkServiceDefinition()
+
+	for i := 0; i < b.N; i++ {
+		procOut, procErr := sd.RunProcessorConcurrentlyInEventMode(
 			NewCliContext(),
 			"validate",
 			[]files.ProcessableFile{},
@@ -285,7 +334,7 @@ func TestService_RunProcessorsConcurrentlyWithServerContext(t *testing.T) {
 
 	sd := testServiceDefinitionForServerContext()
 
-	out, err := sd.RunProcessorConcurrently(
+	out, err := sd.RunProcessorConcurrentlyInLockMode(
 		NewServerContext(req, nil),
 		"photo",
 		in,
@@ -355,7 +404,7 @@ func TestService_RunProcessorsConcurrentlyWithCliContext(t *testing.T) {
 
 	sd := testServiceDefinitionForCliContext()
 
-	out, err := sd.RunProcessorConcurrently(
+	out, err := sd.RunProcessorConcurrentlyInLockMode(
 		NewCliContext(),
 		"photo",
 		in,
@@ -399,7 +448,7 @@ func TestService_RunProcessorsConcurrentlyWithEmptyInput(t *testing.T) {
 
 	sd := testServiceDefinitionForCliContext()
 
-	out, err := sd.RunProcessorConcurrently(
+	out, err := sd.RunProcessorConcurrentlyInLockMode(
 		NewCliContext(),
 		"photo",
 		[]files.ProcessableFile{},
@@ -413,5 +462,75 @@ func TestService_RunProcessorsConcurrentlyWithEmptyInput(t *testing.T) {
 
 	if len(out) != 0 {
 		t.Fatalf("len(out) = %d, want 0", len(out))
+	}
+}
+
+func TestService_RunProcessorsConcurrentlyInEventMode(t *testing.T) {
+	capyfs.InitCopyOnWriteFilesystem()
+
+	imageFile, err := capyfs.Filesystem.Open("testdata/image_512x512.jpg")
+	if err != nil {
+		t.Fatal(err)
+	}
+	binFile, err := capyfs.Filesystem.Open("testdata/file_5kb.bin")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	in := []files.ProcessableFile{
+		files.NewProcessableFile(imageFile.Name()),
+		files.NewProcessableFile(binFile.Name()),
+	}
+
+	errorCh := make(chan operations.OperationError)
+	notificationCh := make(chan operations.OperationNotification)
+
+	go func() {
+		for {
+			select {
+			case <-errorCh:
+			case <-notificationCh:
+			}
+		}
+	}()
+
+	sd := testServiceDefinitionForCliContext()
+
+	out, err := sd.RunProcessorConcurrentlyInEventMode(
+		NewCliContext(),
+		"photo",
+		in,
+		errorCh,
+		notificationCh,
+	)
+
+	if err != nil {
+		t.Fatalf("expect no error while running processor, got %v", err)
+	}
+
+	if len(out) != 2 {
+		t.Fatalf("len(out) = %d, want 2", len(out))
+	}
+
+	imageProcessableFileIdx := slices.IndexFunc(out, func(pf files.ProcessableFile) bool {
+		return pf.Name() == imageFile.Name()
+	})
+	imageProcessableFile := out[imageProcessableFileIdx]
+	if imageProcessableFile.HasFileProcessingError() {
+		t.Fatalf("expect no error for image processable file, got %v", imageProcessableFile.FileProcessingError)
+	}
+
+	binProcessableFileIdx := slices.IndexFunc(out, func(pf files.ProcessableFile) bool {
+		return pf.Name() == binFile.Name()
+	})
+	binProcessableFile := out[binProcessableFileIdx]
+	if !binProcessableFile.HasFileProcessingError() {
+		t.Fatalf("expect an error for bin processable file, got nil")
+	}
+	if binProcessableFile.FileProcessingError.Code() != operations.ErrorCodeFileMimeTypeIsNotAllowed {
+		t.Fatalf(
+			"expect %s error code for bin processable file, got %s",
+			operations.ErrorCodeFileMimeTypeIsNotAllowed,
+			binProcessableFile.FileProcessingError.Code())
 	}
 }

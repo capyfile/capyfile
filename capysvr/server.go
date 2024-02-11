@@ -24,6 +24,7 @@ import (
 type Server struct {
 	ServiceDefinitionFile string
 	Concurrency           bool
+	ConcurrencyMode       string
 
 	Addr     string
 	CertFile string
@@ -197,13 +198,39 @@ func (s *Server) Handler(w http.ResponseWriter, r *http.Request) {
 	var out []files.ProcessableFile
 	var procErr error
 	if s.Concurrency {
-		out, procErr = svc.RunProcessorConcurrently(
-			capysvc.NewServerContext(r, common.EtcdClient),
-			proc.Name,
-			[]files.ProcessableFile{},
-			errorCh,
-			notificationCh,
-		)
+		switch s.ConcurrencyMode {
+		case "event":
+			out, procErr = svc.RunProcessorConcurrentlyInEventMode(
+				capysvc.NewServerContext(r, common.EtcdClient),
+				proc.Name,
+				[]files.ProcessableFile{},
+				errorCh,
+				notificationCh,
+			)
+		case "lock":
+			out, procErr = svc.RunProcessorConcurrentlyInLockMode(
+				capysvc.NewServerContext(r, common.EtcdClient),
+				proc.Name,
+				[]files.ProcessableFile{},
+				errorCh,
+				notificationCh,
+			)
+		default:
+			common.Logger.Error(
+				"invalid concurrency mode",
+				slog.String("concurrencyMode", s.ConcurrencyMode),
+			)
+
+			_ = httpio.WriteError(
+				httpio.NewHTTPAwareError(
+					500,
+					"INTERNAL",
+					"something went wrong",
+					nil,
+				),
+				w,
+			)
+		}
 	} else {
 		out, procErr = svc.RunProcessor(
 			capysvc.NewServerContext(r, common.EtcdClient),
