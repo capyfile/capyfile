@@ -85,6 +85,7 @@ That's it 🎉
 
 * [Operations](docs/operations.md)
 * [Runners](docs/runners.md)
+* [Performance](docs/performance.md)
 * [Examples](docs/examples.md)
 * [Development](docs/development.md)
 
