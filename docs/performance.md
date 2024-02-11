@@ -22,7 +22,7 @@ Here are some examples of when to use each mode.
 
 Go benchmark in the **event-based** concurrency mode:
 ```
- go test -bench=. -count 10 -benchmem
+$ go test -bench=. -count 10 -benchmem
 goos: linux
 goarch: amd64
 pkg: capyfile/capysvc
@@ -65,7 +65,7 @@ concurrency mode.
 
 Go benchmark in the **event-based** concurrency mode:
 ```
-go test -bench=. -count 10 -benchmem
+$ go test -bench=. -count 10 -benchmem
 goos: linux
 goarch: amd64
 pkg: capyfile/capysvc
@@ -84,7 +84,7 @@ BenchmarkService_RunProcessorConcurrentlyInEventMode-24             5628        
 
 Go benchmark in the **lock-based** concurrency mode:
 ```
-go test -bench=. -count 10 -benchmem
+$ go test -bench=. -count 10 -benchmem
 goos: linux
 goarch: amd64
 pkg: capyfile/capysvc
@@ -150,7 +150,7 @@ The lock-based concurrency mode is clear winner in this case.
 
 Go benchmark in the **event-based** concurrency mode:
 ```
-go test -bench=. -count 10 -benchmem
+$ go test -bench=. -count 10 -benchmem
 goos: linux
 goarch: amd64
 pkg: capyfile/capysvc
@@ -165,7 +165,6 @@ BenchmarkService_RunProcessorConcurrentlyInEventMode-24             3708        
 BenchmarkService_RunProcessorConcurrentlyInEventMode-24             3212            370670 ns/op          146682 B/op       1315 allocs/op
 BenchmarkService_RunProcessorConcurrentlyInEventMode-24             3481            351267 ns/op          144847 B/op       1315 allocs/op
 BenchmarkService_RunProcessorConcurrentlyInEventMode-24             3290            305308 ns/op          146415 B/op       1315 allocs/op
-
 ```
 
 Go benchmark in the **lock-based** concurrency mode:
