@@ -335,161 +335,32 @@ func (p *Processor) RunOperationsConcurrentlyInEventMode(
 	errorCh chan<- operations.OperationError,
 	notificationCh chan<- operations.OperationNotification,
 ) ([]files.ProcessableFile, error) {
-	type opCh struct {
-		inputCh    chan struct{}
-		processCh  chan struct{}
-		outputCh   chan struct{}
-		completeCh chan struct{}
+	type operationChannel struct {
+		inputCh    chan int
+		processCh  chan int
+		outputCh   chan int
+		completeCh chan int
 	}
-	opChs := make([]opCh, len(p.Operations))
+
+	opCh := operationChannel{
+		inputCh:    make(chan int),
+		processCh:  make(chan int),
+		outputCh:   make(chan int),
+		completeCh: make(chan int),
+	}
 
 	completeWg := &sync.WaitGroup{}
+	completeWg.Add(len(p.Operations))
 
-	for i := range p.Operations {
-		op := &p.Operations[i]
+	go func() {
+		for {
+			select {
+			case opIdx := <-opCh.inputCh:
+				op := &p.Operations[opIdx]
 
-		handler, handlerErr := op.Handler(ctx)
-		if handlerErr != nil {
-			if errorCh != nil {
-				errorCh <- operations.NewOperationError(op.Name, handlerErr)
-			}
-
-			return nil, handlerErr
-		}
-
-		opChs[i] = opCh{
-			inputCh:    make(chan struct{}),
-			processCh:  make(chan struct{}),
-			outputCh:   make(chan struct{}),
-			completeCh: make(chan struct{}),
-		}
-
-		go func(opIdx int) {
-			for {
-				select {
-				case <-opChs[opIdx].inputCh:
-					// If this is not a concurrent operation, we just stack the input,
-					// so it will be processed when the previous operation is completed.
-					if !handler.AllowConcurrency() {
-						// If this is not the first operation, and the previous
-						// operation is not completed, then we can just return, so
-						// the current operation will continue to collect the input.
-						prevOp := op.operationState.prevOperation
-						if prevOp != nil && !prevOp.operationState.Completed {
-							continue
-						}
-					}
-
-					opChs[opIdx].processCh <- struct{}{}
-				}
-			}
-		}(i)
-
-		go func(opIdx int) {
-			for {
-				select {
-				case <-opChs[opIdx].processCh:
-					op.operationState.io.process(0, func(in []files.ProcessableFile) (out []files.ProcessableFile) {
-						targetIn, skipIn := splitIntoTargetSkip(op.TargetFiles, in)
-
-						var handleOut []files.ProcessableFile
-						var handleErr error
-
-						if op.MaxPacketSize > 0 {
-							// Here we are chunking the input into the pieces based on the max packet size.
-							var chunks [][]files.ProcessableFile
-							for op.MaxPacketSize < len(targetIn) {
-								targetIn, chunks = targetIn[op.MaxPacketSize:], append(chunks, targetIn[0:op.MaxPacketSize:op.MaxPacketSize])
-							}
-							chunks = append(chunks, targetIn)
-
-							// Right now we process the chunks in parallel.
-							wg := &sync.WaitGroup{}
-							l := &sync.Mutex{}
-							for _, chunk := range chunks {
-								wg.Add(1)
-								go func(chunk []files.ProcessableFile) {
-									defer wg.Done()
-
-									chunkHandleOut, chunkHandleErr := handler.Handle(chunk, errorCh, notificationCh)
-									if chunkHandleErr != nil {
-										if errorCh != nil {
-											errorCh <- operations.NewOperationInputError(op.Name, chunk, chunkHandleErr)
-										}
-
-										return
-									}
-
-									l.Lock()
-									handleOut = append(handleOut, chunkHandleOut...)
-									l.Unlock()
-								}(chunk)
-							}
-							wg.Wait()
-						} else {
-							handleOut, handleErr = handler.Handle(targetIn, errorCh, notificationCh)
-							if handleErr != nil {
-								// Perhaps maybe this is something that is related to the specific file,
-								// so we can just send an error to the channel and continue.
-								if errorCh != nil {
-									errorCh <- operations.NewOperationInputError(op.Name, targetIn, handleErr)
-								}
-
-								return out
-							}
-						}
-
-						if len(skipIn) > 0 {
-							if notificationCh != nil {
-								for _, pf := range skipIn {
-									notificationCh <- operations.NewSkippedOperationNotification(op.Name, op.TargetFiles, &pf)
-								}
-							}
-
-							out = skipIn
-						}
-
-						if len(handleOut) > 0 {
-							assignCleanupPolicy(op.CleanupPolicy, handleOut)
-
-							out = append(out, handleOut...)
-						}
-
-						return out
-					})
-
-					opChs[opIdx].outputCh <- struct{}{}
-				}
-			}
-		}(i)
-
-		go func(opIdx int) {
-			for {
-				select {
-				case <-opChs[opIdx].outputCh:
-					// Pass the output to the next operation's input.
-					nextOp := op.operationState.nextOperation
-					if nextOp != nil {
-						op.operationState.io.dequeueOutput(
-							func(out []files.ProcessableFile) {
-								nextOp.operationState.io.enqueueInput(out...)
-							},
-						)
-
-						opChs[opIdx+1].inputCh <- struct{}{}
-						opChs[opIdx].completeCh <- struct{}{}
-					} else {
-						opChs[opIdx].completeCh <- struct{}{}
-					}
-				}
-			}
-		}(i)
-
-		completeWg.Add(1)
-		go func(opIdx int) {
-			for {
-				select {
-				case <-opChs[opIdx].completeCh:
+				// If this is not a concurrent operation, we just stack the input,
+				// so it will be processed when the previous operation is completed.
+				if !op.operationState.handler.AllowConcurrency() {
 					// If this is not the first operation, and the previous
 					// operation is not completed, then we can just return, so
 					// the current operation will continue to collect the input.
@@ -497,34 +368,155 @@ func (p *Processor) RunOperationsConcurrentlyInEventMode(
 					if prevOp != nil && !prevOp.operationState.Completed {
 						continue
 					}
+				}
 
-					// If this is not the last operation, we need to wait while all
-					// the input/output is processed.
-					nextOp := op.operationState.nextOperation
-					if nextOp != nil {
-						if op.operationState.io.isQueueEmpty() {
-							op.operationState.complete()
-							completeWg.Done()
+				opCh.processCh <- opIdx
+			}
+		}
+	}()
+
+	go func() {
+		for {
+			select {
+			case opIdx := <-opCh.processCh:
+				op := &p.Operations[opIdx]
+
+				op.operationState.io.process(0, func(in []files.ProcessableFile) (out []files.ProcessableFile) {
+					targetIn, skipIn := splitIntoTargetSkip(op.TargetFiles, in)
+
+					var handleOut []files.ProcessableFile
+					var handleErr error
+
+					if op.MaxPacketSize > 0 {
+						// Here we are chunking the input into the pieces based on the max packet size.
+						var chunks [][]files.ProcessableFile
+						for op.MaxPacketSize < len(targetIn) {
+							targetIn, chunks = targetIn[op.MaxPacketSize:], append(chunks, targetIn[0:op.MaxPacketSize:op.MaxPacketSize])
 						}
+						chunks = append(chunks, targetIn)
 
-						continue
+						// Right now we process the chunks in parallel.
+						wg := &sync.WaitGroup{}
+						l := &sync.Mutex{}
+						for _, chunk := range chunks {
+							wg.Add(1)
+							go func(chunk []files.ProcessableFile) {
+								defer wg.Done()
+
+								chunkHandleOut, chunkHandleErr := op.operationState.handler.Handle(chunk, errorCh, notificationCh)
+								if chunkHandleErr != nil {
+									if errorCh != nil {
+										errorCh <- operations.NewOperationInputError(op.Name, chunk, chunkHandleErr)
+									}
+
+									return
+								}
+
+								l.Lock()
+								handleOut = append(handleOut, chunkHandleOut...)
+								l.Unlock()
+							}(chunk)
+						}
+						wg.Wait()
+					} else {
+						handleOut, handleErr = op.operationState.handler.Handle(targetIn, errorCh, notificationCh)
+						if handleErr != nil {
+							// Perhaps maybe this is something that is related to the specific file,
+							// so we can just send an error to the channel and continue.
+							if errorCh != nil {
+								errorCh <- operations.NewOperationInputError(op.Name, targetIn, handleErr)
+							}
+						}
 					}
 
-					// If this is the last operation, we need to wait while the input
-					// is processed.
-					if op.operationState.io.isInputQueueEmpty() {
+					if len(skipIn) > 0 {
+						if notificationCh != nil {
+							for _, pf := range skipIn {
+								notificationCh <- operations.NewSkippedOperationNotification(op.Name, op.TargetFiles, &pf)
+							}
+						}
+
+						out = skipIn
+					}
+
+					if len(handleOut) > 0 {
+						assignCleanupPolicy(op.CleanupPolicy, handleOut)
+
+						out = append(out, handleOut...)
+					}
+
+					return out
+				})
+
+				opCh.outputCh <- opIdx
+			}
+		}
+	}()
+
+	go func() {
+		for {
+			select {
+			case opIdx := <-opCh.outputCh:
+				op := &p.Operations[opIdx]
+
+				// Pass the output to the next operation's input.
+				nextOp := op.operationState.nextOperation
+				if nextOp != nil {
+					op.operationState.io.dequeueOutput(
+						func(out []files.ProcessableFile) {
+							nextOp.operationState.io.enqueueInput(out...)
+						},
+					)
+
+					opCh.completeCh <- opIdx
+					opCh.inputCh <- opIdx + 1
+				} else {
+					opCh.completeCh <- opIdx
+				}
+			}
+		}
+	}()
+
+	go func() {
+		for {
+			select {
+			case opIdx := <-opCh.completeCh:
+				op := &p.Operations[opIdx]
+
+				// If this is not the first operation, and the previous
+				// operation is not completed, then we can just return, so
+				// the current operation will continue to collect the input.
+				prevOp := op.operationState.prevOperation
+				if prevOp != nil && !prevOp.operationState.Completed {
+					continue
+				}
+
+				// If this is not the last operation, we need to wait while all
+				// the input/output is processed.
+				nextOp := op.operationState.nextOperation
+				if nextOp != nil {
+					if op.operationState.io.isQueueEmpty() {
 						op.operationState.complete()
 						completeWg.Done()
 					}
+
+					continue
+				}
+
+				// If this is the last operation, we need to wait while the input
+				// is processed.
+				if op.operationState.io.isInputQueueEmpty() {
+					op.operationState.complete()
+					completeWg.Done()
 				}
 			}
-		}(i)
-	}
+		}
+	}()
 
 	firstOp, lastOp := p.firstAndLastOperations()
 
 	firstOp.operationState.io.enqueueInput(in...)
-	opChs[0].inputCh <- struct{}{}
+	opCh.inputCh <- 0
 
 	completeWg.Wait()
 
@@ -584,6 +576,12 @@ func (p *Processor) InitOperations(ctx Context) error {
 		}
 
 		op.Reset()
+
+		// Initialize the operation handler.
+		_, handlerErr := op.Handler(ctx)
+		if handlerErr != nil {
+			return handlerErr
+		}
 
 		if prevOp != nil {
 			prevOp.operationState.nextOperation = op
