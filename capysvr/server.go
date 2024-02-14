@@ -26,6 +26,10 @@ type Server struct {
 	Concurrency           bool
 	ConcurrencyMode       string
 
+	HealthCheck                  bool
+	HealthCheckEndpoint          string
+	HealthCheckEndpointVerbosity int
+
 	Addr     string
 	CertFile string
 	KeyFile  string
@@ -80,9 +84,19 @@ func (s *Server) Run() error {
 	mainCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	mux := http.NewServeMux()
+	if s.HealthCheck {
+		var pattern = "/health"
+		if s.HealthCheckEndpoint != "" {
+			pattern = s.HealthCheckEndpoint
+		}
+		mux.HandleFunc(pattern, s.HealthCheckHandler)
+	}
+	mux.HandleFunc("/", s.Handler)
+
 	httpServer := &http.Server{
 		Addr:    s.Addr,
-		Handler: http.HandlerFunc(s.Handler),
+		Handler: mux,
 		BaseContext: func(listener net.Listener) context.Context {
 			return mainCtx
 		},
@@ -330,6 +344,29 @@ func (s *Server) Handler(w http.ResponseWriter, r *http.Request) {
 			w,
 		)
 		return
+	}
+}
+
+func (s *Server) HealthCheckHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	healthCheckWriteErr := httpio.WriteHealthCheck(
+		name,
+		version,
+		commit,
+		s.HealthCheckEndpointVerbosity,
+		w,
+	)
+	if healthCheckWriteErr != nil {
+		_ = httpio.WriteError(
+			httpio.NewHTTPAwareError(
+				500,
+				"HEALTH_CHECK_WRITING_FAILURE",
+				"health check writing failure",
+				healthCheckWriteErr,
+			),
+			w,
+		)
 	}
 }
 

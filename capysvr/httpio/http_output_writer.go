@@ -11,6 +11,8 @@ import (
 	"github.com/dustin/go-humanize"
 	"golang.org/x/exp/slog"
 	"net/http"
+	"runtime"
+	"time"
 )
 
 // Right now this is quire messy, but this is going to be a place
@@ -214,6 +216,64 @@ func WriteError(err error, w http.ResponseWriter) error {
 	if responseWriterErr != nil {
 		common.Logger.Error(
 			"failed to write error for http",
+			slog.Any("error", responseWriterErr),
+		)
+
+		return responseWriterErr
+	}
+
+	return nil
+}
+
+type HealthCheckDTO struct {
+	Status    string `json:"status"`
+	Timestamp string `json:"timestamp"`
+
+	Name    *string `json:"name,omitempty"`
+	Version *string `json:"version,omitempty"`
+	Commit  *string `json:"commit,omitempty"`
+
+	System *SystemDTO `json:"system,omitempty"`
+}
+
+type SystemDTO struct {
+	GoVersion       string `json:"version"`
+	GoroutinesCount int    `json:"goroutinesCount"`
+	TotalAllocBytes uint64 `json:"totalAllocBytes"`
+	HeapAllocBytes  uint64 `json:"heapAllocBytes"`
+	HeapObjects     uint64 `json:"heapObjects"`
+}
+
+// WriteHealthCheck Writes the health check response to the http response.
+func WriteHealthCheck(name, version, commit string, verbosity int, w http.ResponseWriter) error {
+	memStat := runtime.MemStats{}
+	runtime.ReadMemStats(&memStat)
+
+	response := HealthCheckDTO{
+		Status:    "OK",
+		Timestamp: time.Now().Format(time.RFC3339Nano),
+	}
+
+	if verbosity > 0 {
+		response.Name = &name
+		response.Version = &version
+		response.Commit = &commit
+	}
+
+	if verbosity > 1 {
+		response.System = &SystemDTO{
+			GoVersion:       runtime.Version(),
+			GoroutinesCount: runtime.NumGoroutine(),
+			TotalAllocBytes: memStat.TotalAlloc,
+			HeapAllocBytes:  memStat.HeapAlloc,
+			HeapObjects:     memStat.HeapObjects,
+		}
+	}
+
+	responseWriterErr := json.NewEncoder(w).Encode(response)
+	if responseWriterErr != nil {
+		common.Logger.Error(
+			"failed to write health check response for http",
 			slog.Any("error", responseWriterErr),
 		)
 
